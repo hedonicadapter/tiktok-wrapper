@@ -1,0 +1,66 @@
+# XcodeGen spec. Run `xcodegen generate` to produce ScrollGate.xcodeproj.
+name: ScrollGate
+options:
+  bundleIdPrefix: dev.scrollgate
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "16.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  ScrollGate:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+      - path: Bridge
+      - path: Interrupts
+      - path: Packs
+      # Loose files -> bundle root (feed-observer.js, hide-selectors.json, config.default.json)
+      - path: Resources
+        excludes:
+          - "starter-packs/**"
+      # Folder reference -> copied as starter-packs/ directory in bundle
+      - path: Resources/starter-packs
+        type: folder
+        buildPhase: resources
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: ScrollGate
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIFileSharingEnabled: true                   # packs visible in Files app
+        LSSupportsOpeningDocumentsInPlace: true
+        UIRequiresFullScreen: true
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.scrollgate.app
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: false
+  ScrollGateTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: ScrollGate
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: true
+schemes:
+  ScrollGate:
+    build:
+      targets:
+        ScrollGate: all
+        ScrollGateTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets: [ScrollGateTests]

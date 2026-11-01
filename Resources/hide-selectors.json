@@ -1,0 +1,10 @@
+[
+  "[data-e2e='open-app-banner']",
+  "[data-e2e='bottom-banner']",
+  "[data-e2e='download-app-banner']",
+  "[data-e2e='app-download-modal']",
+  "[class*='DivOpenAppBanner']",
+  "[class*='DivBottomBanner']",
+  "[class*='DivDownloadApp']",
+  "[class*='GetAppBottomBanner']"
+]

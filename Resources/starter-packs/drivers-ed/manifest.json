@@ -1,0 +1,8 @@
+{
+  "id": "drivers-ed",
+  "title": "Körkortsteori",
+  "kind": "quiz",
+  "items": "items.json",
+  "strategy": "weighted-wrong",
+  "unlock": "correct"
+}

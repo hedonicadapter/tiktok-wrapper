@@ -1,0 +1,8 @@
+{
+  "id": "stretch",
+  "title": "Stretch",
+  "kind": "timer",
+  "items": "items.json",
+  "strategy": "random",
+  "unlock": "done"
+}

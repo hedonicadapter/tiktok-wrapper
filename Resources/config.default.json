@@ -1,0 +1,6 @@
+{
+  "interval": 5,
+  "hardMode": false,
+  "packs": { "drivers-ed": 3, "stretch": 1, "blank-prompt": 1 },
+  "quietHours": ["23:00", "07:00"]
+}

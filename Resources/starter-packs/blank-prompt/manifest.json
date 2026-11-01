@@ -1,0 +1,8 @@
+{
+  "id": "blank-prompt",
+  "title": "One sentence",
+  "kind": "prompt",
+  "items": "items.json",
+  "strategy": "sequential",
+  "unlock": "done"
+}

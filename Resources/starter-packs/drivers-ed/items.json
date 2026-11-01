@@ -1,0 +1,72 @@
+[
+  {
+    "id": "hogerregel",
+    "q": "Du närmar dig en korsning utan vägmärken eller trafiksignaler. Vad gäller?",
+    "answers": ["Högerregeln", "Den som kör på den bredaste vägen har företräde", "Den som kommer först har företräde", "Vänsterregeln"],
+    "correct": 0,
+    "explain": "I korsningar utan reglering gäller högerregeln: du ska lämna företräde åt fordon som kommer från höger."
+  },
+  {
+    "id": "hastighet-tattbebyggt",
+    "q": "Vilken bashastighet gäller inom tättbebyggt område om inget annat anges?",
+    "answers": ["30 km/h", "40 km/h", "50 km/h", "70 km/h"],
+    "correct": 2,
+    "explain": "Bashastigheten inom tättbebyggt område är 50 km/h. Kommunen kan besluta om 30 eller 40 km/h lokalt."
+  },
+  {
+    "id": "stopplikt",
+    "q": "Vad måste du göra vid ett stopplikt-märke?",
+    "answers": ["Sakta in och köra om det är fritt", "Stanna helt vid stopplinjen, även om det är fritt", "Stanna bara om det kommer trafik", "Blinka och köra vidare"],
+    "correct": 1,
+    "explain": "Stopplikt innebär att du alltid måste stanna helt vid stopplinjen (eller vid korsningen om linje saknas) innan du kör vidare."
+  },
+  {
+    "id": "bromsstracka-dubbel-hastighet",
+    "q": "Du fördubblar hastigheten. Hur påverkas bromssträckan?",
+    "answers": ["Den fördubblas", "Den tredubblas", "Den blir fyra gånger så lång", "Den påverkas inte"],
+    "correct": 2,
+    "explain": "Bromssträckan ökar med kvadraten på hastigheten: dubbel hastighet ger fyra gånger så lång bromssträcka."
+  },
+  {
+    "id": "alkohol-grans",
+    "q": "Vid vilken alkoholhalt i blodet räknas det som rattfylleri i Sverige?",
+    "answers": ["0,1 promille", "0,2 promille", "0,5 promille", "1,0 promille"],
+    "correct": 1,
+    "explain": "Gränsen för rattfylleri är 0,2 promille. Grovt rattfylleri från 1,0 promille."
+  },
+  {
+    "id": "overgangsstalle",
+    "q": "En gående står vid ett obevakat övergångsställe och ser ut att vilja gå över. Vad gäller?",
+    "answers": ["Du har företräde eftersom du är i fordon", "Du har väjningsplikt mot den gående", "Du ska tuta för att varna", "Du får köra om den gående inte har börjat gå"],
+    "correct": 1,
+    "explain": "Vid obevakat övergångsställe har du väjningsplikt mot gående som gått ut på eller just ska gå ut på övergångsstället."
+  },
+  {
+    "id": "reaktionstid",
+    "q": "Hur lång är en normal reaktionstid för en uppmärksam förare?",
+    "answers": ["0,1 sekund", "Cirka 1 sekund", "3 sekunder", "5 sekunder"],
+    "correct": 1,
+    "explain": "Reaktionstiden är normalt cirka 1 sekund. Vid 90 km/h hinner bilen då 25 meter innan du ens börjar bromsa."
+  },
+  {
+    "id": "motorvag-minsta",
+    "q": "Vilka fordon får INTE köra på motorväg?",
+    "answers": ["Personbil med släp", "Motorcykel", "Moped klass I", "Buss"],
+    "correct": 2,
+    "explain": "På motorväg får bara fordon som kan och får köra minst 40 km/h köra. Moped, traktor och cykel är förbjudna."
+  },
+  {
+    "id": "varningsmarke-avstand",
+    "q": "Hur långt före faran sätts ett varningsmärke normalt upp på en 70-väg?",
+    "answers": ["5–75 meter", "150–250 meter", "200–400 meter", "500–1000 meter"],
+    "correct": 1,
+    "explain": "På vägar med 70 km/h eller lägre sätts varningsmärken normalt 150–250 meter före faran. På högre hastigheter 200–400 meter."
+  },
+  {
+    "id": "dackmonster",
+    "q": "Vilket är minsta tillåtna mönsterdjup för sommardäck?",
+    "answers": ["1,0 mm", "1,6 mm", "3,0 mm", "4,0 mm"],
+    "correct": 1,
+    "explain": "Sommardäck måste ha minst 1,6 mm mönsterdjup. Vinterdäck vid vinterväglag minst 3 mm."
+  }
+]
