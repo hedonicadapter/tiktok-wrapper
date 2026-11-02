@@ -41,16 +41,16 @@ Do not set a custom User-Agent. Default WKWebView UA looks like Safari, which is
 
 ## Architecture
 ```
-FeedView          SwiftUI, hosts WKWebView, shows InterruptOverlay as fullScreenCover
+FeedView          SwiftUI, hosts WKWebView, slides FeedCard in on the swipe after video N
 Bridge            WKScriptMessageHandler, receives {type:"video", id}
 SwipeCounter      increments per unique video id, persisted, fires at N
-InterruptOverlay  SwiftUI, interactiveDismissDisabled, renders whatever Interrupt it's given
+FeedCard          SwiftUI, gesture-driven card; wraps InterruptOverlay which renders the Interrupt
 PackStore         discovers packs in Documents/packs/, loads manifests
 Scheduler         picks which pack fires next (rotation/weights), asks pack for next item
 InterruptKinds/   one renderer per kind: Quiz, Flashcard, Prompt, Read, Timer, Web
 Resources/        feed-observer.js, bundled starter pack (drivers-ed)
 ```
-Overlay is native SwiftUI on top of the web view, not injected into TikTok's page. TikTok's JS can't see it, remove it, or scroll under it.
+Card is native SwiftUI on top of the web view, not injected into TikTok's page. TikTok's JS can't see it, remove it, or scroll under it. While armed, a transparent shield eats the swipe and the web view's scroll is disabled; after unlock, swiping the card away calls `__tq.next()` so the feed lands on the following video.
 
 ## Content model
 Everything the overlay shows is an `Interrupt`. The app knows a fixed set of *kinds*; packs supply items of those kinds.

@@ -74,6 +74,15 @@ A single object instead of an array is accepted (pack of one).
   Without hard mode, Skip appears after 30 s.
 - `quietHours`: no interrupts between these times; counter resets instead.
 
+## How an interrupt appears
+
+The interrupt is a *feed card*, not a modal. After video N is counted, the next swipe up
+drags the card in from the bottom exactly like the next video would. TikTok never sees that
+swipe. Once the unlock rule is met the card dims and shows "Swipe up to continue"; swiping it
+off the top scrolls the feed one video (`__tq.next()`, best effort) and resumes playback.
+
+If the app is killed with a card pending, it comes back on relaunch already on screen.
+
 ## Unlock rules
 
 - `correct` — quiz: wrong answer shows explanation, then "Try again". flashcard: "Didn't know"
@@ -82,6 +91,18 @@ A single object instead of an array is accepted (pack of one).
 - `done` — prompt reaches minChars / read, timer, web timer reaches zero.
 
 Pending interrupts are persisted: killing and relaunching the app brings the same interrupt back.
+
+## Probing tiktok.com without a device
+
+`tools/probe.js` loads tiktok.com in headless Chromium with iPhone emulation, injects
+`feed-observer.js`, and reports hide-list hits, touch-scroll, `__tq.next()` and counting.
+Logged out from a datacenter IP TikTok serves "Page not available" for the For You feed, so
+the probe uses a single video page; log in with a persistent profile for the real feed.
+
+```sh
+npm i playwright && npx playwright install chromium
+node tools/probe.js https://www.tiktok.com/@tiktok/video/7106594312292453675
+```
 
 ## Day 1 troubleshooting
 

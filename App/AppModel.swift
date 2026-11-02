@@ -1,11 +1,23 @@
 import Foundation
 import Combine
 import WebKit
+import UIKit
 
-/// Glue: counter + scheduler + pending-interrupt persistence. Owns the web view's control calls.
+/// Lifecycle of the feed card (the interrupt presented as if it were the next video).
+enum CardPhase: Equatable {
+    case hidden
+    case armed                      // count hit N; next swipe drags the card in
+    case shown                      // card on screen, unlock rule not yet met
+    case completed(InterruptResult) // unlocked; swipe up dismisses
+    case dismissing
+}
+
+/// Glue: counter + scheduler + card state + pending-interrupt persistence.
 @MainActor
 final class AppModel: ObservableObject {
-    @Published var active: ScheduledInterrupt?
+    @Published var card: ScheduledInterrupt?
+    @Published var phase: CardPhase = .hidden
+    @Published var dragOffset: CGFloat = 0      // live finger translation while dragging card
     @Published var lastLog: String = ""
 
     let store: PackStore
@@ -44,10 +56,11 @@ final class AppModel: ObservableObject {
             #endif
         }
 
-        // Relaunch with unresolved interrupt → show it again.
+        // Relaunch with unresolved interrupt → show card directly, no gesture.
         if let data = defaults.data(forKey: pendingKey),
            let pending = try? JSONDecoder().decode(ScheduledInterrupt.self, from: data) {
-            active = pending
+            card = pending
+            phase = .shown
         }
     }
 
@@ -61,6 +74,12 @@ final class AppModel: ObservableObject {
         Bridge.makeUserScript(hideSelectors: store.loadHideSelectors())
     }
 
+    /// Called by the web view once created; applies current lock state.
+    func attach(_ web: WKWebView) {
+        webView = web
+        applyScrollLock()
+    }
+
     // MARK: Flow
 
     private func handleVideo(_ id: String) {
@@ -68,7 +87,7 @@ final class AppModel: ObservableObject {
         print("[tq] video \(id)")
         #endif
         guard counter.register(id) else { return }
-        guard active == nil else { return }
+        guard phase == .hidden else { return }
         guard counter.shouldFire(interval: scheduler.config.interval) else { return }
 
         if scheduler.isQuiet() {
@@ -76,34 +95,65 @@ final class AppModel: ObservableObject {
             return
         }
         guard let next = scheduler.nextInterrupt() else {
-            // No usable packs — don't block the feed, just reset.
-            counter.reset()
+            counter.reset()     // no usable packs: never block the feed
             return
         }
-        present(next)
+        arm(next)
     }
 
-    func present(_ s: ScheduledInterrupt) {
+    /// Count reached N. Card waits just below the screen; the next swipe drags it in.
+    func arm(_ s: ScheduledInterrupt) {
         if let data = try? JSONEncoder().encode(s) { defaults.set(data, forKey: pendingKey) }
+        card = s
+        dragOffset = 0
+        phase = .armed
+        applyScrollLock()
+    }
+
+    /// Swipe committed: card snaps fully on screen, feed pauses.
+    func showCard() {
+        guard phase == .armed else { return }
         pauseFeed()
-        active = s
+        dragOffset = 0
+        phase = .shown
     }
 
-    func complete(_ s: ScheduledInterrupt, result: InterruptResult) {
-        scheduler.record(s, result: result)
+    /// Unlock rule met inside the card. Card stays until the user swipes it away.
+    func cardCompleted(_ result: InterruptResult) {
+        guard case .shown = phase, let card else { return }
+        scheduler.record(card, result: result)
         defaults.removeObject(forKey: pendingKey)
-        counter.reset()
-        active = nil
-        resumeFeed()
+        phase = .completed(result)
     }
 
-    /// Debug/manual trigger.
+    /// Card swiped off the top. Feed advances one video and resumes.
+    func dismissCard() {
+        guard case .completed = phase else { return }
+        phase = .dismissing
+        counter.reset()
+        applyScrollLock(unlock: true)
+        advanceFeed()
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(350))
+            card = nil
+            dragOffset = 0
+            phase = .hidden
+            resumeFeed()
+        }
+    }
+
+    /// Debug/manual trigger: arm immediately.
     func fireNow() {
-        guard active == nil, let next = scheduler.nextInterrupt() else { return }
-        present(next)
+        guard phase == .hidden, let next = scheduler.nextInterrupt() else { return }
+        arm(next)
     }
 
     // MARK: Feed control
+
+    private func applyScrollLock(unlock: Bool = false) {
+        let locked = !unlock && phase != .hidden
+        webView?.scrollView.isScrollEnabled = !locked
+    }
 
     func pauseFeed() {
         webView?.evaluateJavaScript("window.__tq && window.__tq.pause(); 0", completionHandler: nil)
@@ -111,5 +161,10 @@ final class AppModel: ObservableObject {
 
     func resumeFeed() {
         webView?.evaluateJavaScript("window.__tq && window.__tq.resume(); 0", completionHandler: nil)
+    }
+
+    /// Best effort: scroll feed one page so the card feels inserted between two videos.
+    func advanceFeed() {
+        webView?.evaluateJavaScript("window.__tq && window.__tq.next(); 0", completionHandler: nil)
     }
 }

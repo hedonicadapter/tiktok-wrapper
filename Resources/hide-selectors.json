@@ -6,5 +6,11 @@
   "[class*='DivOpenAppBanner']",
   "[class*='DivBottomBanner']",
   "[class*='DivDownloadApp']",
-  "[class*='GetAppBottomBanner']"
+  "[class*='GetAppBottomBanner']",
+  "[data-e2e='bottom_banner']",
+  "[data-e2e='top-banner-open']",
+  "[data-e2e='bottom-banner-open']",
+  "[data-e2e='middle-cta-container']",
+  "[class*='DivFooterCTA']",
+  "[class*='DivOpenBtnAB']"
 ]

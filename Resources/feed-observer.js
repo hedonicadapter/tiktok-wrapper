@@ -114,13 +114,34 @@
     return best;
   }
 
+  // Nearest ancestor of el that actually scrolls vertically, else null (= window scrolls).
+  function scrollContainer(el) {
+    var node = el && el.parentElement;
+    while (node && node !== document.body && node !== document.documentElement) {
+      var cs = getComputedStyle(node);
+      if (/(auto|scroll)/.test(cs.overflowY) && node.scrollHeight > node.clientHeight + 4) return node;
+      node = node.parentElement;
+    }
+    return null;
+  }
+
   window.__tq = {
     pause: function () {
       document.querySelectorAll('video').forEach(function (v) { try { v.pause(); } catch (e) {} });
     },
     resume: function () {
-      var v = mostVisibleVideo();
+      var v = mostVisibleVideo() || document.querySelector('video');
       if (v) { var p = v.play(); if (p && p.catch) p.catch(function () {}); }
+    },
+    // Advance feed by one page (one video on the swipe feed). Best effort: honours
+    // scroll-snap containers; falls back to window scroll. Returns what it scrolled.
+    next: function () {
+      var v = mostVisibleVideo();
+      var c = scrollContainer(v);
+      var h = c ? c.clientHeight : window.innerHeight;
+      if (c) { c.scrollBy({ top: h, behavior: 'smooth' }); return 'container'; }
+      window.scrollBy({ top: h, behavior: 'smooth' });
+      return 'window';
     },
     seenCount: function () { return seen.size; },
     resetSeen: function () { seen.clear(); }
