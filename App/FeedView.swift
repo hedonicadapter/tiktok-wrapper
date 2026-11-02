@@ -18,7 +18,6 @@ struct FeedView: View {
                     Color.clear
                         .contentShape(Rectangle())
                         .gesture(armedDrag(height: h))
-                        .ignoresSafeArea()
                 }
 
                 // The card. Lives in the same ZStack, slides vertically like a feed item.
@@ -29,7 +28,6 @@ struct FeedView: View {
                     .frame(width: geo.size.width, height: h)
                     .offset(y: cardOffset(height: h))
                     .gesture(dismissDrag(height: h), including: isCompleted ? .all : .subviews)
-                    .ignoresSafeArea()
                     .transition(.identity)
                     .zIndex(1)
                 }
@@ -39,6 +37,7 @@ struct FeedView: View {
                 #endif
             }
         }
+        .ignoresSafeArea()   // geo = full screen, so the card covers the whole feed
         .onChange(of: scenePhase) { _, p in
             if p == .active { model.reload() }
             if model.phase != .hidden && model.phase != .armed { model.pauseFeed() }

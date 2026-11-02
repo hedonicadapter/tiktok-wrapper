@@ -101,3 +101,87 @@ final class SchedulerTests: XCTestCase {
         XCTAssertEqual(back, s)
     }
 }
+
+final class PackStoreTests: XCTestCase {
+    /// Repo's Resources/starter-packs, located relative to this file so it works in SwiftPM and Xcode.
+    private var starterPacks: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Resources/starter-packs")
+    }
+
+    private func makeStore() throws -> PackStore {
+        let docs = FileManager.default.temporaryDirectory.appendingPathComponent("tq-\(UUID().uuidString)")
+        let store = PackStore(documents: docs)
+        try FileManager.default.createDirectory(at: store.packsDir, withIntermediateDirectories: true)
+        for name in try FileManager.default.contentsOfDirectory(atPath: starterPacks.path) {
+            try FileManager.default.copyItem(at: starterPacks.appendingPathComponent(name),
+                                             to: store.packsDir.appendingPathComponent(name))
+        }
+        return store
+    }
+
+    func testStarterPacksLoad() throws {
+        let store = try makeStore()
+        store.reload()
+        XCTAssertEqual(store.errors, [])
+        XCTAssertEqual(store.packs.map(\.id).sorted(), ["blank-prompt", "drivers-ed", "stretch"])
+        let de = try XCTUnwrap(store.pack(id: "drivers-ed"))
+        XCTAssertEqual(de.kind, .quiz)
+        XCTAssertEqual(de.itemCount, 10)
+        XCTAssertEqual(de.unlock, .correct)
+        XCTAssertEqual(store.pack(id: "stretch")?.kind, .timer)
+        XCTAssertEqual(store.pack(id: "blank-prompt")?.kind, .prompt)
+    }
+
+    func testBrokenPackIsSkippedNotFatal() throws {
+        let store = try makeStore()
+        let bad = store.packsDir.appendingPathComponent("bad")
+        try FileManager.default.createDirectory(at: bad, withIntermediateDirectories: true)
+        try #"{"id":"bad","title":"Bad","kind":"quiz"}"#.write(to: bad.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try #"[{"q":"no answers"}]"#.write(to: bad.appendingPathComponent("items.json"), atomically: true, encoding: .utf8)
+        store.reload()
+        XCTAssertEqual(store.packs.count, 3)
+        XCTAssertTrue(store.errors.contains { $0.contains("bad") })
+    }
+
+    func testSchedulerPicksAndRecords() throws {
+        let store = try makeStore()
+        store.reload()
+        let defaults = UserDefaults(suiteName: "tq.test.\(UUID().uuidString)")!
+        let sched = Scheduler(store: store, defaults: defaults)
+        sched.reloadConfig()   // no config.json -> default weights
+        var seenPacks = Set<String>()
+        for _ in 0..<60 {
+            let s = try XCTUnwrap(sched.nextInterrupt())
+            seenPacks.insert(s.packId)
+            sched.record(s, result: .wrong)
+        }
+        XCTAssertEqual(seenPacks, ["blank-prompt", "drivers-ed", "stretch"])
+        let p = sched.loadProgress(packId: "drivers-ed")
+        XCTAssertGreaterThan(p.items.values.reduce(0) { $0 + $1.wrong }, 0)
+    }
+
+    func testWrongAnswerRecursSoon() throws {
+        let store = try makeStore()
+        store.reload()
+        let de = try XCTUnwrap(store.pack(id: "drivers-ed"))
+        var within5 = 0
+        for _ in 0..<50 {
+            var progress = PackProgress()
+            for id in de.itemIds { for _ in 0..<3 { de.record(itemId: id, result: .correct, progress: &progress) } }
+            de.record(itemId: "stopplikt", result: .wrong, progress: &progress)
+            // Simulate following interrupts: answer everything else right until stopplikt comes back.
+            var steps = 0
+            while steps < 20 {
+                steps += 1
+                let picked = try XCTUnwrap(de.next(progress: progress))
+                if picked.itemId == "stopplikt" { break }
+                de.record(itemId: picked.itemId, result: .correct, progress: &progress)
+            }
+            if steps <= 5 { within5 += 1 }
+        }
+        // weight 3 vs nine others at 0.2 → ~62% per draw after the no-immediate-repeat draw
+        XCTAssertGreaterThan(within5, 40)
+    }
+}
