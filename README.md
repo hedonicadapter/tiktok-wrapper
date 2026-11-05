@@ -9,7 +9,8 @@ Content comes from pluggable packs in the Files app. See `plan.md` for design an
 ## Build
 
 ```sh
-brew install xcodegen          # or: nix develop   (flake.nix provides xcodegen)
+brew install xcodegen          # or: nix develop   (flake.nix provides xcodegen + xcodes)
+# No Xcode yet?  xcodes install --latest   (downloads from Apple, bypasses the App Store)
 xcodegen generate
 open ScrollGate.xcodeproj
 ```

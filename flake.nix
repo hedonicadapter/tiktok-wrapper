@@ -10,9 +10,14 @@
     in {
       devShells = forAll (pkgs: {
         default = pkgs.mkShell {
-          packages = [ pkgs.xcodegen ];
+          # Xcode itself cannot be packaged (Apple license, signed 10 GB bundle that
+          # writes into itself). `xcodes` downloads it from Apple with any Apple ID.
+          packages = [ pkgs.xcodegen pkgs.xcodes ];
           shellHook = ''
-            echo "xcodegen $(xcodegen --version 2>/dev/null)  —  run: xcodegen generate && open ScrollGate.xcodeproj"
+            if ! xcode-select -p >/dev/null 2>&1 || [ "$(xcode-select -p)" = "/Library/Developer/CommandLineTools" ]; then
+              echo "No Xcode found. Install with:  xcodes install --latest && sudo xcodebuild -license accept"
+            fi
+            echo "Then:  xcodegen generate && open ScrollGate.xcodeproj"
           '';
         };
       });
