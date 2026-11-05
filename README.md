@@ -9,7 +9,7 @@ Content comes from pluggable packs in the Files app. See `plan.md` for design an
 ## Build
 
 ```sh
-brew install xcodegen
+brew install xcodegen          # or: nix develop   (flake.nix provides xcodegen)
 xcodegen generate
 open ScrollGate.xcodeproj
 ```
