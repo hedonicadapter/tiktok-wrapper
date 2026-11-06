@@ -21,6 +21,19 @@ the overlay but TikTok's mobile site behaves differently there; test the feed on
 Debug builds show a small `count/interval` badge top-right. Tap it for pack list, load errors,
 "Fire now" and "Reload packs".
 
+## Install on a phone without Xcode
+
+CI builds an unsigned IPA on every push and publishes it to the rolling `latest` release
+together with an AltStore/SideStore source feed:
+
+```
+https://github.com/hedonicadapter/tiktok-wrapper/releases/download/latest/altstore.json
+```
+
+Add that URL as a source in AltStore or SideStore once. Every later build shows up as an
+Update. The store signs the IPA with your own (free) Apple ID; apps re-sign every 7 days.
+Sideloadly works too: download `ScrollGate.ipa` from the release and drag it in.
+
 ## Files app layout (`On My iPhone/ScrollGate/`)
 
 ```

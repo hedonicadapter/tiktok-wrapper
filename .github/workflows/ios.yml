@@ -4,6 +4,12 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: write   # rolling "latest" release with the IPA + AltStore source
+
+env:
+  APP_VERSION: 0.1.${{ github.run_number }}
+
 jobs:
   build-and-test:
     runs-on: macos-15
@@ -71,6 +77,7 @@ jobs:
             -destination 'generic/platform=iOS' \
             -derivedDataPath build/dd \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            MARKETING_VERSION="$APP_VERSION" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             build 2>&1 | tee ipa.log | grep -E "error:|BUILD" || true
           grep -q "\*\* BUILD SUCCEEDED \*\*" ipa.log
           APP=$(find build/dd/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' | head -1)
@@ -84,3 +91,61 @@ jobs:
         with:
           name: ScrollGate-unsigned-ipa
           path: ScrollGate-unsigned.ipa
+
+      # AltStore / SideStore source: add the altstore.json URL once in the store app,
+      # every later push shows up as an Update.
+      - name: Write AltStore source
+        if: github.event_name == 'push'
+        run: |
+          cp ScrollGate-unsigned.ipa ScrollGate.ipa
+          SIZE=$(stat -f %z ScrollGate.ipa)
+          DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          BASE="https://github.com/${{ github.repository }}/releases/download/latest"
+          NOTE=$(git log -1 --pretty=%s | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read().strip()))')
+          cat > altstore.json <<EOF
+          {
+            "name": "ScrollGate",
+            "identifier": "dev.scrollgate.source",
+            "sourceURL": "$BASE/altstore.json",
+            "apps": [
+              {
+                "name": "ScrollGate",
+                "bundleIdentifier": "dev.scrollgate.app",
+                "developerName": "${{ github.repository_owner }}",
+                "subtitle": "TikTok with interrupts",
+                "localizedDescription": "TikTok in a web view. Every N videos a quiz, flashcard, prompt, timer or page blocks the feed until you deal with it.",
+                "iconURL": "https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/.github/icon.png",
+                "tintColor": "#FE2C55",
+                "versions": [
+                  {
+                    "version": "$APP_VERSION",
+                    "date": "$DATE",
+                    "downloadURL": "$BASE/ScrollGate.ipa",
+                    "size": $SIZE,
+                    "minOSVersion": "17.0",
+                    "localizedDescription": $NOTE
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+          python3 -c 'import json; json.load(open("altstore.json"))' && cat altstore.json
+
+      - name: Move "latest" tag
+        if: github.event_name == 'push'
+        run: |
+          git tag -f latest
+          git push -f origin latest
+
+      - name: Publish rolling release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "ScrollGate ${{ env.APP_VERSION }}"
+          body: "Unsigned IPA. Sign with AltStore / SideStore / Sideloadly. Source feed: altstore.json"
+          prerelease: true
+          files: |
+            ScrollGate.ipa
+            altstore.json
