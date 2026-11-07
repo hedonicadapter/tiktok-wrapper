@@ -6,6 +6,8 @@
 
   // Replaced by Swift with contents of hide-selectors.json before injection.
   var HIDE_SELECTORS = __HIDE_SELECTORS__;
+  // Nag dialogs to dismiss the way a user would ("Not now", "Continue on web").
+  var CLICK_SELECTORS = __CLICK_SELECTORS__;
   var THRESHOLD = 0.6;
   var DEBOUNCE_MS = 400;
 
@@ -23,6 +25,23 @@
     style.id = '__tq_hide';
     style.textContent = HIDE_SELECTORS.join(',\n') + ' { display: none !important; }';
     (document.head || document.documentElement).appendChild(style);
+  }
+
+  // --- auto-dismiss nag dialogs -------------------------------------------
+  var clickedRecently = 0;
+  function dismissNags() {
+    if (!CLICK_SELECTORS || !CLICK_SELECTORS.length) return;
+    var now = Date.now();
+    if (now - clickedRecently < 500) return;
+    for (var i = 0; i < CLICK_SELECTORS.length; i++) {
+      var el = document.querySelector(CLICK_SELECTORS[i]);
+      // offsetParent is null inside position:fixed overlays; use client rects instead.
+      if (el && el.getClientRects().length > 0) {
+        clickedRecently = now;
+        try { el.click(); log('dismissed ' + CLICK_SELECTORS[i]); } catch (e) {}
+        return;
+      }
+    }
   }
 
   // --- video identity -------------------------------------------------------
@@ -86,15 +105,19 @@
     root.querySelectorAll('video').forEach(track);
   }
 
+  var nagTimer = null;
   var mo = new MutationObserver(function (muts) {
     for (var i = 0; i < muts.length; i++) {
       var added = muts[i].addedNodes;
       for (var j = 0; j < added.length; j++) scan(added[j]);
     }
+    clearTimeout(nagTimer);
+    nagTimer = setTimeout(dismissNags, 150);
   });
 
   function start() {
     installHideCSS();
+    dismissNags();
     scan(document.body);
     mo.observe(document.body, { childList: true, subtree: true });
     log('feed-observer installed');

@@ -26,17 +26,18 @@ final class Bridge: NSObject, WKScriptMessageHandler {
         }
     }
 
-    /// Builds the injected user script: feed-observer.js with hide selectors spliced in.
-    static func makeUserScript(hideSelectors: [String]) -> WKUserScript {
+    /// Builds the injected user script: feed-observer.js with hide/click selectors spliced in.
+    static func makeUserScript(selectors: NagSelectors) -> WKUserScript {
         let js = loadObserverJS()
-        let selectorsJSON: String
-        if let data = try? JSONEncoder().encode(hideSelectors), let s = String(data: data, encoding: .utf8) {
-            selectorsJSON = s
-        } else {
-            selectorsJSON = "[]"
-        }
-        let source = js.replacingOccurrences(of: "__HIDE_SELECTORS__", with: selectorsJSON)
+        let source = js
+            .replacingOccurrences(of: "__HIDE_SELECTORS__", with: jsonArray(selectors.hide))
+            .replacingOccurrences(of: "__CLICK_SELECTORS__", with: jsonArray(selectors.click))
         return WKUserScript(source: source, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+    }
+
+    private static func jsonArray(_ list: [String]) -> String {
+        guard let data = try? JSONEncoder().encode(list), let s = String(data: data, encoding: .utf8) else { return "[]" }
+        return s
     }
 
     private static func loadObserverJS() -> String {

@@ -44,17 +44,17 @@ final class PackStore: ObservableObject {
         }
     }
 
-    // MARK: Hide selectors
+    // MARK: Hide / click selectors
 
     /// Documents copy wins (editable in Files app); bundle copy is fallback.
-    func loadHideSelectors() -> [String] {
+    /// Accepts `{"hide": [...], "click": [...]}` or a legacy plain array (hide only).
+    func loadHideSelectors() -> NagSelectors {
         for url in [hideSelectorsURL, Bundle.main.url(forResource: "hide-selectors", withExtension: "json")].compactMap({ $0 }) {
-            if let data = try? Data(contentsOf: url),
-               let list = try? JSONDecoder().decode([String].self, from: data) {
-                return list
-            }
+            guard let data = try? Data(contentsOf: url) else { continue }
+            if let obj = try? JSONDecoder().decode(NagSelectors.self, from: data) { return obj }
+            if let list = try? JSONDecoder().decode([String].self, from: data) { return NagSelectors(hide: list, click: []) }
         }
-        return []
+        return NagSelectors(hide: [], click: [])
     }
 
     // MARK: Packs

@@ -1,8 +1,10 @@
 // Probe tiktok.com mobile web with feed-observer.js injected. Usage: node tools/probe.js [url]
 const { chromium, devices } = require('playwright');
 const fs = require('fs'); const path = require('path');
+const SEL = JSON.parse(fs.readFileSync(__dirname + '/../Resources/hide-selectors.json','utf8'));
 const JS = fs.readFileSync(__dirname + '/../Resources/feed-observer.js','utf8')
-  .replace('__HIDE_SELECTORS__', fs.readFileSync(__dirname + '/../Resources/hide-selectors.json','utf8'));
+  .replace('__HIDE_SELECTORS__', JSON.stringify(SEL.hide || SEL))
+  .replace('__CLICK_SELECTORS__', JSON.stringify(SEL.click || []));
 async function touchSwipe(cdp, x, y0, y1, steps = 12) {
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y: y0 }] });
   for (let i = 1; i <= steps; i++) {
@@ -22,7 +24,9 @@ async function touchSwipe(cdp, x, y0, y1, steps = 12) {
   const cdp = await ctx.newCDPSession(page);
   await page.goto(process.argv[2] || 'https://www.tiktok.com/@tiktok/video/7106594312292453675', { waitUntil: 'domcontentloaded', timeout: 60000 });
   await page.waitForTimeout(6000);
-  const close = await page.$('[data-e2e="launch-popup-close"]'); if (close) { await close.click().catch(()=>{}); await page.waitForTimeout(1000); }
+  const popupStill = await page.$('[data-e2e="launch-popup-close"]');
+  console.log('launch popup still present after auto-dismiss?', !!popupStill && await popupStill.isVisible().catch(()=>false));
+  console.log('observer logs:', JSON.stringify(msgs.filter(m => m.type === 'log').map(m => m.msg)));
 
   const hidden = await page.evaluate(() => {
     const q = (s) => { const e = document.querySelector(s); return e ? getComputedStyle(e).display : 'absent'; };

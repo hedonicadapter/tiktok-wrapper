@@ -38,7 +38,7 @@ Sideloadly works too: download `ScrollGate.ipa` from the release and drag it in.
 
 ```
 config.json              interval, hardMode, pack weights, quietHours
-hide-selectors.json      CSS selectors hidden on tiktok.com (app-nag banners)
+hide-selectors.json      {"hide": [css selectors to hide], "click": [nag buttons to auto-tap]}
 packs/<id>/manifest.json
 packs/<id>/items.json
 ```

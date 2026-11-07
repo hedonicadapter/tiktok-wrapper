@@ -1,5 +1,11 @@
 import Foundation
 
+/// hide-selectors.json: CSS selectors to hide, and nag buttons to auto-click ("Not now").
+struct NagSelectors: Codable, Equatable {
+    var hide: [String] = []
+    var click: [String] = []
+}
+
 // MARK: - Manifest (Documents/packs/<id>/manifest.json)
 
 struct PackManifest: Codable {

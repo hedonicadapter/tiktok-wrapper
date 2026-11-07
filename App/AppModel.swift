@@ -18,6 +18,7 @@ final class AppModel: ObservableObject {
     @Published var card: ScheduledInterrupt?
     @Published var phase: CardPhase = .hidden
     @Published var dragOffset: CGFloat = 0      // live finger translation while dragging card
+    @Published var popup: PopupWindow?          // window.open target (OAuth sign-in)
     @Published var lastLog: String = ""
 
     let store: PackStore
@@ -71,7 +72,7 @@ final class AppModel: ObservableObject {
     }
 
     func makeUserScript() -> WKUserScript {
-        Bridge.makeUserScript(hideSelectors: store.loadHideSelectors())
+        Bridge.makeUserScript(selectors: store.loadHideSelectors())
     }
 
     /// Called by the web view once created; applies current lock state.

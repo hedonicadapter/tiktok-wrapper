@@ -1,16 +1,21 @@
-[
-  "[data-e2e='open-app-banner']",
-  "[data-e2e='bottom-banner']",
-  "[data-e2e='download-app-banner']",
-  "[data-e2e='app-download-modal']",
-  "[class*='DivOpenAppBanner']",
-  "[class*='DivBottomBanner']",
-  "[class*='DivDownloadApp']",
-  "[class*='GetAppBottomBanner']",
-  "[data-e2e='bottom_banner']",
-  "[data-e2e='top-banner-open']",
-  "[data-e2e='bottom-banner-open']",
-  "[data-e2e='middle-cta-container']",
-  "[class*='DivFooterCTA']",
-  "[class*='DivOpenBtnAB']"
-]
+{
+  "hide": [
+    "[data-e2e='open-app-banner']",
+    "[data-e2e='bottom-banner']",
+    "[data-e2e='download-app-banner']",
+    "[data-e2e='bottom_banner']",
+    "[data-e2e='top-banner-open']",
+    "[data-e2e='bottom-banner-open']",
+    "[class*='DivOpenAppBanner']",
+    "[class*='DivBottomBanner']",
+    "[class*='DivDownloadApp']",
+    "[class*='GetAppBottomBanner']",
+    "[class*='DivFooterCTA']",
+    "[class*='DivOpenBtnAB']"
+  ],
+  "click": [
+    "[data-e2e='alt-middle-cta-cancel-btn']",
+    "[data-e2e='modal-close-inner-button']",
+    "[data-e2e='launch-popup-close']"
+  ]
+}

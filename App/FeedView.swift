@@ -38,6 +38,11 @@ struct FeedView: View {
             }
         }
         .ignoresSafeArea()   // geo = full screen, so the card covers the whole feed
+        .background(Color.black.ignoresSafeArea())
+        .preferredColorScheme(.dark)
+        .sheet(item: $model.popup) { popup in
+            PopupWebView(popup: popup) { model.popup = nil }
+        }
         .onChange(of: scenePhase) { _, p in
             if p == .active { model.reload() }
             if model.phase != .hidden && model.phase != .armed { model.pauseFeed() }
@@ -126,17 +131,29 @@ struct FeedView: View {
 struct TikTokWebView: UIViewRepresentable {
     let model: AppModel
 
+    func makeCoordinator() -> Coordinator { Coordinator(model: model) }
+
     func makeUIView(context: Context) -> WKWebView {
         let cfg = WKWebViewConfiguration()
         cfg.allowsInlineMediaPlayback = true
         cfg.mediaTypesRequiringUserActionForPlayback = []
         cfg.websiteDataStore = .default()
+        // Default WKWebView UA lacks the "Version/x Safari/x" suffix; Google OAuth refuses
+        // sign-in from anything that doesn't look like real Safari. This appends the suffix
+        // to the real device UA, giving exactly what Mobile Safari sends.
+        cfg.applicationNameForUserAgent = "Version/17.0 Mobile/15E148 Safari/604.1"
+        cfg.preferences.javaScriptCanOpenWindowsAutomatically = true
         cfg.userContentController.add(model.bridge, name: Bridge.handlerName)
         cfg.userContentController.addUserScript(model.makeUserScript())
 
         let web = WKWebView(frame: .zero, configuration: cfg)
+        web.uiDelegate = context.coordinator
         web.allowsBackForwardNavigationGestures = true
-        web.scrollView.contentInsetAdjustmentBehavior = .never
+        web.isOpaque = false
+        web.backgroundColor = .black
+        web.scrollView.backgroundColor = .black
+        // Like Safari: page is inset below the status bar, so TikTok's header stays tappable.
+        web.scrollView.contentInsetAdjustmentBehavior = .always
         if #available(iOS 16.4, *) {
             web.isInspectable = true
         }
@@ -147,7 +164,54 @@ struct TikTokWebView: UIViewRepresentable {
 
     func updateUIView(_ uiView: WKWebView, context: Context) {}
 
-    static func dismantleUIView(_ uiView: WKWebView, coordinator: ()) {
+    static func dismantleUIView(_ uiView: WKWebView, coordinator: Coordinator) {
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: Bridge.handlerName)
     }
+
+    /// Handles window.open (OAuth popups like "Continue with Google") by presenting a sheet.
+    final class Coordinator: NSObject, WKUIDelegate {
+        let model: AppModel
+        init(model: AppModel) { self.model = model }
+
+        func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
+                     for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+            // Must use the supplied configuration so the popup shares the opener's session.
+            let popup = WKWebView(frame: .zero, configuration: configuration)
+            popup.uiDelegate = self
+            if #available(iOS 16.4, *) { popup.isInspectable = true }
+            model.popup = PopupWindow(webView: popup)
+            return popup
+        }
+
+        func webViewDidClose(_ webView: WKWebView) {
+            if model.popup?.webView === webView { model.popup = nil }
+        }
+    }
+}
+
+/// A popup window opened by the page (OAuth). Identifiable so SwiftUI can present it.
+struct PopupWindow: Identifiable {
+    let id = UUID()
+    let webView: WKWebView
+}
+
+struct PopupWebView: View {
+    let popup: PopupWindow
+    let onClose: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            PopupWebViewHost(webView: popup.webView)
+                .ignoresSafeArea(edges: .bottom)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) { Button("Close") { onClose() } }
+                }
+        }
+    }
+}
+
+struct PopupWebViewHost: UIViewRepresentable {
+    let webView: WKWebView
+    func makeUIView(context: Context) -> WKWebView { webView }
+    func updateUIView(_ uiView: WKWebView, context: Context) {}
 }
