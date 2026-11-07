@@ -6,6 +6,9 @@ struct SchedulerConfig: Codable, Equatable {
     var hardMode: Bool = false
     var packs: [String: Double] = [:]      // pack id -> weight; 0 parks it
     var quietHours: [String]? = nil        // ["23:00", "07:00"]
+    var debug: Bool? = nil                 // show counter badge + debug panel (default true)
+
+    var showDebug: Bool { debug ?? true }
 
     static let `default` = SchedulerConfig(
         interval: 5, hardMode: false,

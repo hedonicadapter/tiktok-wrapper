@@ -18,8 +18,8 @@ open ScrollGate.xcodeproj
 Set your team under Signing & Capabilities, run on a device (iOS 17+). Simulator works for
 the overlay but TikTok's mobile site behaves differently there; test the feed on hardware.
 
-Debug builds show a small `count/interval` badge top-right. Tap it for pack list, load errors,
-"Fire now" and "Reload packs".
+A small `count/interval` badge sits top-right (config `debug`, default true). Tap it for pack
+list, load errors, "Arm now" and "Reload packs".
 
 ## Install on a phone without Xcode
 
@@ -87,6 +87,7 @@ A single object instead of an array is accepted (pack of one).
 - `hardMode`: forces `unlock: correct` on quiz/flashcard packs and removes the Skip button.
   Without hard mode, Skip appears after 30 s.
 - `quietHours`: no interrupts between these times; counter resets instead.
+- `debug`: show the `count/interval` badge top-right (tap for packs, errors, Arm now). Default true.
 
 ## How an interrupt appears
 

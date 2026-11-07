@@ -32,9 +32,9 @@ struct FeedView: View {
                     .zIndex(1)
                 }
 
-                #if DEBUG
-                debugBadge.zIndex(2)
-                #endif
+                if model.scheduler.config.showDebug {
+                    debugBadge.zIndex(2)
+                }
             }
         }
         .ignoresSafeArea()   // geo = full screen, so the card covers the whole feed
@@ -91,7 +91,6 @@ struct FeedView: View {
             }
     }
 
-    #if DEBUG
     private var debugBadge: some View {
         VStack(alignment: .trailing, spacing: 4) {
             Button {
@@ -121,7 +120,6 @@ struct FeedView: View {
         .padding(.top, 50)
         .padding(.trailing, 12)
     }
-    #endif
 }
 
 /// Hosts tiktok.com. Config per plan.md: inline playback, autoplay, persistent cookies, bridge script.
