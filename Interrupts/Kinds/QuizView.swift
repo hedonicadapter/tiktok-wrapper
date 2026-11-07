@@ -6,6 +6,7 @@ struct QuizView: View {
     let answers: [String]
     let correct: Int
     let explain: String?
+    var imagePath: String? = nil
     let unlock: UnlockRule
     let onComplete: (InterruptResult) -> Void
 
@@ -19,6 +20,13 @@ struct QuizView: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    if let imagePath, let ui = UIImage(contentsOfFile: imagePath) {
+                        Image(uiImage: ui)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: .infinity, maxHeight: 220)
+                            .padding(.vertical, 4)
+                    }
                     Text(question)
                         .font(.title3.weight(.semibold))
                         .fixedSize(horizontal: false, vertical: true)

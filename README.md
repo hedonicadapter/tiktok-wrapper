@@ -62,7 +62,7 @@ Edits take effect when the app returns to foreground (or tap "Reload packs" in D
 
 | kind | item |
 |---|---|
-| quiz | `{"id"?, "q", "answers": [...], "correct": 0, "explain"?}` |
+| quiz | `{"id"?, "q", "answers": [...], "correct": 0, "explain"?, "image"?: "signs/B2.png"}` |
 | flashcard | `{"front", "back"}` |
 | prompt | `{"text", "minChars": 40}` |
 | read | `{"markdown", "minSeconds": 20}` or `{"file": "x.md", "minSeconds": 20}` |
@@ -106,6 +106,20 @@ If the app is killed with a card pending, it comes back on relaunch already on s
 - `done` — prompt reaches minChars / read, timer, web timer reaches zero.
 
 Pending interrupts are persisted: killing and relaunching the app brings the same interrupt back.
+
+## Importing a bigger question bank
+
+Two community-written Swedish B-licence banks exist on GitHub. Neither carries a license, so
+the importer builds packs on your machine instead of this repo shipping their questions:
+
+```sh
+node tools/import-pack.js friberg   ./packs-out      # 726 q, 3 options, 81 with sign/situation images
+node tools/import-pack.js lemonsad  ./packs-out      # ~200 q, 4 options, sv explanations
+```
+
+It clones the source repo into a temp dir (or pass a local path as third argument), parses the
+data files without executing them, and writes `packs-out/<id>/manifest.json`, `items.json` and
+images. Drop the folder into Files → ScrollGate → packs, then give it a weight in `config.json`.
 
 ## Probing tiktok.com without a device
 

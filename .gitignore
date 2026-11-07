@@ -7,3 +7,4 @@ DerivedData/
 *.ipa
 *.dSYM.zip
 .DS_Store
+packs-out/

@@ -46,6 +46,7 @@ struct PackItem: Codable {
     var answers: [String]?
     var correct: Int?
     var explain: String?
+    var image: String?          // file in pack folder, e.g. "signs/B2.png"
     // flashcard
     var front: String?
     var back: String?
@@ -70,7 +71,12 @@ struct PackItem: Codable {
             guard let q, let answers, let correct else { throw PackError.invalidItem("quiz needs q, answers, correct") }
             guard answers.count >= 2 else { throw PackError.invalidItem("quiz needs >= 2 answers") }
             guard answers.indices.contains(correct) else { throw PackError.invalidItem("quiz correct index out of range") }
-            return .quiz(q: q, answers: answers, correct: correct, explain: explain)
+            var imagePath: String? = nil
+            if let image, !image.isEmpty {
+                let u = packDir.appendingPathComponent(image)
+                imagePath = FileManager.default.fileExists(atPath: u.path) ? u.path : nil
+            }
+            return .quiz(q: q, answers: answers, correct: correct, explain: explain, image: imagePath)
         case .flashcard:
             guard let front, let back else { throw PackError.invalidItem("flashcard needs front, back") }
             return .flashcard(front: front, back: back)

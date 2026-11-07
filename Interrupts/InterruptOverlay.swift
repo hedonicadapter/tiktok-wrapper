@@ -32,8 +32,8 @@ struct InterruptOverlay: View {
     @ViewBuilder
     private var content: some View {
         switch scheduled.interrupt {
-        case let .quiz(q, answers, correct, explain):
-            QuizView(question: q, answers: answers, correct: correct, explain: explain,
+        case let .quiz(q, answers, correct, explain, image):
+            QuizView(question: q, answers: answers, correct: correct, explain: explain, imagePath: image,
                      unlock: scheduled.unlock, onComplete: onComplete)
         case let .flashcard(front, back):
             FlashcardView(front: front, back: back, unlock: scheduled.unlock, onComplete: onComplete)

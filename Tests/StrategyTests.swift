@@ -94,7 +94,7 @@ final class SchedulerTests: XCTestCase {
 
     func testInterruptRoundTrip() throws {
         let s = ScheduledInterrupt(packId: "p", packTitle: "P", itemId: "i",
-                                   interrupt: .quiz(q: "q", answers: ["a", "b"], correct: 1, explain: nil),
+                                   interrupt: .quiz(q: "q", answers: ["a", "b"], correct: 1, explain: nil, image: nil),
                                    unlock: .correct, hardMode: false, hideSelectors: ["#nag"])
         let data = try JSONEncoder().encode(s)
         let back = try JSONDecoder().decode(ScheduledInterrupt.self, from: data)

@@ -2,7 +2,7 @@ import Foundation
 
 /// Fixed set of things the overlay knows how to render. Packs supply items of these kinds.
 enum Interrupt: Codable, Equatable {
-    case quiz(q: String, answers: [String], correct: Int, explain: String?)
+    case quiz(q: String, answers: [String], correct: Int, explain: String?, image: String?)   // image: absolute file path
     case flashcard(front: String, back: String)
     case prompt(text: String, minChars: Int)
     case read(markdown: String, minSeconds: Int)
