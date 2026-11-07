@@ -53,7 +53,10 @@ final class AppModel: ObservableObject {
             Task { @MainActor in self?.handleVideo(id) }
         }
         bridge.onLog = { [weak self] msg in
-            Task { @MainActor in self?.lastLog = msg }
+            Task { @MainActor in
+                self?.lastLog = msg
+                if msg != "feed-observer installed" { self?.note("js: \(msg)") }
+            }
             #if DEBUG
             print("[tq] \(msg)")
             #endif
@@ -159,10 +162,22 @@ final class AppModel: ObservableObject {
     func note(_ s: String) {
         let stamp = Date().formatted(date: .omitted, time: .standard)
         events.append("\(stamp) \(s)")
-        if events.count > 12 { events.removeFirst(events.count - 12) }
+        if events.count > 60 { events.removeFirst(events.count - 60) }
         #if DEBUG
         print("[tq] \(s)")
         #endif
+    }
+
+    /// Everything the debug panel knows, for pasting into a bug report.
+    var debugReport: String {
+        var lines = ["ScrollGate \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")",
+                     "url: \(currentURL)",
+                     "count: \(counter.count)/\(scheduler.config.interval)  desktopSite: \(scheduler.config.desktopSite ?? false)",
+                     "packs: \(store.packs.map(\.id).joined(separator: ", "))"]
+        lines += store.errors.map { "pack error: \($0)" }
+        if let e = scheduler.configError { lines.append("config error: \(e)") }
+        lines += events
+        return lines.joined(separator: "\n")
     }
 
     /// Web content process died (memory pressure). WKWebView shows blank until reloaded.

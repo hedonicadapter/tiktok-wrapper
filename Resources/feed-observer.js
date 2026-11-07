@@ -44,6 +44,118 @@
     }
   }
 
+  // --- generic nag handling -------------------------------------------------
+  // Any overlay/dialog/sheet whose text pushes the app gets dismissed like a user would:
+  // tap its "Not now"/close control, else hide it and its dim mask. Login forms are left alone.
+  var NAG_TEXT = /öppna (tiktok|appen)|open (the )?(tiktok|app)|i appen|in the app|hämta appen|skaffa appen|get (the )?(full )?(tiktok )?app|ladda ner|download|fortsätt i appen|continue in (the )?app|watch (more )?on tiktok|titta (vidare |mer )?(på|i) (tiktok|appen)|se (fler|mer)( videor)? i appen|app experience|appupplevelse|använd appen|use the app|bättre i appen|better in the app/i;
+  var DISMISS_TEXT = /^(inte nu|not now|fortsätt på webben|fortsätt på webbplatsen|continue on web|continue (in|on) (the )?browser|fortsätt i webbläsaren|avbryt|cancel|stäng|close|nej tack|no thanks|kanske senare|maybe later|×|✕|x)$/i;
+  var WEB_CHOICE = /^(fortsätt på webben|fortsätt på webbplatsen|continue on web|continue (in|on) (the )?browser|fortsätt i webbläsaren|inte nu|not now)$/i;
+  var DIALOG_SEL = '[role="dialog"],[aria-modal="true"],.tt-sheet__container,[class*="Modal"],[class*="modal"],[class*="Popup"],[class*="popup"],[class*="Sheet"],[class*="sheet"],[class*="Drawer"],[class*="Guide"],[class*="CTA"],[data-e2e*="popup"],[data-e2e*="modal"],[data-e2e*="cta"]';
+  var handled = new WeakMap(); // el -> time first handled
+
+  function isVisible(el) {
+    if (!el || !el.getClientRects().length) return false;
+    var cs = getComputedStyle(el);
+    return cs.display !== 'none' && cs.visibility !== 'hidden' && parseFloat(cs.opacity) > 0.05;
+  }
+  function inFixedLayer(el) {
+    for (var n = el; n && n !== document.body; n = n.parentElement) {
+      if (getComputedStyle(n).position === 'fixed') return true;
+    }
+    return false;
+  }
+  function label(el) {
+    return String(el.getAttribute('data-e2e') || el.getAttribute('role') || String(el.className).split(' ').pop() || el.tagName).slice(0, 48);
+  }
+  function tap(el) {
+    var r = el.getBoundingClientRect();
+    var o = { bubbles: true, cancelable: true, view: window, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
+    try { el.dispatchEvent(new PointerEvent('pointerdown', o)); } catch (e) {}
+    el.dispatchEvent(new MouseEvent('mousedown', o));
+    try { el.dispatchEvent(new PointerEvent('pointerup', o)); } catch (e) {}
+    el.dispatchEvent(new MouseEvent('mouseup', o));
+    el.click();
+  }
+  function hide(el) { el.style.setProperty('display', 'none', 'important'); }
+  function alpha(bg) { var m = /rgba?\(([^)]+)\)/.exec(bg || ''); if (!m) return 0; var p = m[1].split(','); return p.length > 3 ? parseFloat(p[3]) : 1; }
+  function isMask(el) {
+    var cs = getComputedStyle(el);
+    if (cs.position !== 'fixed' || cs.pointerEvents === 'none' || !isVisible(el)) return false;
+    var r = el.getBoundingClientRect();
+    if (r.width < innerWidth * 0.9 || r.height < innerHeight * 0.6) return false;
+    var a = alpha(cs.backgroundColor);
+    return a >= 0.15 && a <= 0.95 && !(el.innerText || '').trim() && !el.querySelector('video');
+  }
+  function findDismiss(root) {
+    var cands = root.querySelectorAll('button,[role="button"],a,[aria-label],[data-e2e*="close"],[data-e2e*="cancel"],[data-e2e*="refuse"],svg');
+    var byData = null;
+    for (var i = 0; i < cands.length; i++) {
+      var c = cands[i];
+      if (!isVisible(c)) continue;
+      var t = (c.innerText || c.getAttribute('aria-label') || '').trim();
+      if (t && DISMISS_TEXT.test(t)) return c;
+      if (!byData && /close|cancel|refuse/i.test(c.getAttribute('data-e2e') || '')) byData = c;
+    }
+    return byData;
+  }
+  function hideMasksNear(el) {
+    var parent = el.parentElement;
+    for (var hops = 0; parent && hops < 3; hops++, parent = parent.parentElement) {
+      for (var i = 0; i < parent.children.length; i++) {
+        var sib = parent.children[i];
+        if (sib !== el && isMask(sib)) { hide(sib); log('hid mask ' + label(sib)); }
+      }
+    }
+  }
+  function scanNags() {
+    var now = Date.now();
+    var nodes = document.querySelectorAll(DIALOG_SEL);
+    for (var i = 0; i < nodes.length; i++) {
+      var d = nodes[i];
+      if (!isVisible(d) || !inFixedLayer(d)) continue;
+      var r = d.getBoundingClientRect();
+      if (r.width * r.height < innerWidth * innerHeight * 0.12) continue;      // skip small UI (header pill)
+      if (d.querySelector('input[type="text"],input[type="password"],input[type="email"],input[type="tel"],input:not([type])')) continue; // login form
+      var text = (d.innerText || '').slice(0, 400);
+      if (!NAG_TEXT.test(text)) continue;
+      var first = handled.get(d);
+      if (!first) {
+        handled.set(d, now);
+        var btn = findDismiss(d) || (d.parentElement && findDismiss(d.parentElement));
+        if (btn) { tap(btn); log('tapped "' + (btn.innerText || btn.getAttribute('aria-label') || label(btn)).trim().slice(0, 24) + '" in ' + label(d) + ': ' + text.replace(/\s+/g, ' ').slice(0, 60)); }
+        else { hide(d); hideMasksNear(d); log('hid ' + label(d) + ': ' + text.replace(/\s+/g, ' ').slice(0, 60)); }
+      } else if (now - first > 900) {
+        hide(d); hideMasksNear(d); log('still visible after tap, hid ' + label(d));
+      }
+    }
+    // Standalone "continue on web"/"not now" controls in fixed layers (popups built from
+    // separately positioned pieces, e.g. TikTok's launch popup).
+    var leaves = document.querySelectorAll('button,[role="button"],a,div,span');
+    for (var q = 0; q < leaves.length; q++) {
+      var c = leaves[q];
+      var t = (c.innerText || '').trim();
+      if (!t || t.length > 30 || !WEB_CHOICE.test(t) || handled.get(c)) continue;
+      if (c.firstElementChild && (c.firstElementChild.innerText || '').trim() === t) continue; // use innermost
+      if (!isVisible(c) || !inFixedLayer(c)) continue;
+      handled.set(c, now);
+      tap(c);
+      log('tapped standalone "' + t + '" (' + label(c) + ')');
+    }
+
+    // Lone dim masks with nothing on top (dialog content already gone/hidden).
+    var all = document.querySelectorAll('body div');
+    for (var j = 0; j < all.length; j++) {
+      var m = all[j];
+      if (!isMask(m)) continue;
+      var p = m.parentElement, busy = false;
+      for (var k = 0; p && k < p.children.length; k++) {
+        var s = p.children[k];
+        if (s !== m && isVisible(s) && (s.innerText || '').trim() && !NAG_TEXT.test(s.innerText)) { busy = true; break; }
+      }
+      if (!busy) { hide(m); log('hid lone mask ' + label(m)); }
+    }
+  }
+
   // --- video identity -------------------------------------------------------
   var elementIndex = 0;
   var indexKey = '__tqIndex';
@@ -112,12 +224,14 @@
       for (var j = 0; j < added.length; j++) scan(added[j]);
     }
     clearTimeout(nagTimer);
-    nagTimer = setTimeout(dismissNags, 150);
+    nagTimer = setTimeout(function () { dismissNags(); scanNags(); }, 150);
   });
 
   function start() {
     installHideCSS();
     dismissNags();
+    scanNags();
+    setInterval(scanNags, 1000);   // sheets can animate in without DOM mutations
     scan(document.body);
     mo.observe(document.body, { childList: true, subtree: true });
     log('feed-observer installed');

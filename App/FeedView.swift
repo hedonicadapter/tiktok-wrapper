@@ -115,6 +115,7 @@ struct FeedView: View {
                     Text(model.currentURL).lineLimit(1).truncationMode(.middle)
                     Text(model.lastLog).lineLimit(2)
                     ForEach(model.events.suffix(6), id: \.self) { Text($0).lineLimit(1) }
+                    Button("Copy log") { UIPasteboard.general.string = model.debugReport }
                     Button("Reload page") { model.webView?.reload() }
                     Button("Go to feed") { model.webView?.load(URLRequest(url: AppModel.feedURL)) }
                     Button("Arm now") { model.fireNow() }
@@ -147,6 +148,9 @@ struct TikTokWebView: UIViewRepresentable {
         // to the real device UA, giving exactly what Mobile Safari sends.
         cfg.applicationNameForUserAgent = "Version/17.0 Mobile/15E148 Safari/604.1"
         cfg.preferences.javaScriptCanOpenWindowsAutomatically = true
+        if model.scheduler.config.desktopSite == true {
+            cfg.defaultWebpagePreferences.preferredContentMode = .desktop
+        }
         cfg.userContentController.add(model.bridge, name: Bridge.handlerName)
         cfg.userContentController.addUserScript(model.makeUserScript())
 
@@ -179,6 +183,29 @@ struct TikTokWebView: UIViewRepresentable {
         let model: AppModel
         init(model: AppModel) { self.model = model }
 
+        // MARK: Navigation policy
+
+        /// Keep everything inside the wrapper: no app-scheme hand-offs (snssdk1233://, tiktok://,
+        /// itms-apps://) and no universal links that would open the TikTok app.
+        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
+                     decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            guard let url = navigationAction.request.url else { return decisionHandler(.allow) }
+            if Coordinator.isAppHandoff(url) {
+                model.note("blocked app hand-off: \(url.absoluteString.prefix(80))")
+                return decisionHandler(.cancel)
+            }
+            // .allow + 2 == WKNavigationActionPolicyAllowWithoutTryingAppLink: load in the web view
+            // even when the URL is a universal link claimed by an installed app.
+            decisionHandler(WKNavigationActionPolicy(rawValue: WKNavigationActionPolicy.allow.rawValue + 2) ?? .allow)
+        }
+
+        static func isAppHandoff(_ url: URL) -> Bool {
+            let scheme = (url.scheme ?? "").lowercased()
+            if !["http", "https", "about", "blob", "data", "file"].contains(scheme) { return true }
+            let host = (url.host ?? "").lowercased()
+            return host == "apps.apple.com" || host == "itunes.apple.com" || host.hasSuffix(".onelink.me")
+        }
+
         // MARK: Navigation / health
 
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
@@ -210,6 +237,10 @@ struct TikTokWebView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
                      for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+            if let url = navigationAction.request.url, Coordinator.isAppHandoff(url) {
+                model.note("blocked app hand-off popup: \(url.absoluteString.prefix(80))")
+                return nil
+            }
             // Must use the supplied configuration so the popup shares the opener's session.
             let popup = WKWebView(frame: .zero, configuration: configuration)
             popup.uiDelegate = self

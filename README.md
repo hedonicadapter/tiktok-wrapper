@@ -88,6 +88,10 @@ A single object instead of an array is accepted (pack of one).
   Without hard mode, Skip appears after 30 s.
 - `quietHours`: no interrupts between these times; counter resets instead.
 - `debug`: show the `count/interval` badge top-right (tap for packs, errors, Arm now). Default true.
+- `desktopSite`: load tiktok.com's desktop layout instead of mobile web. Fallback if the mobile
+  site keeps forcing you into the app. Takes effect on next launch.
+
+Tap the badge → **Copy log** to copy URL, packs, nag dismissals and blocked app hand-offs.
 
 ## How an interrupt appears
 
