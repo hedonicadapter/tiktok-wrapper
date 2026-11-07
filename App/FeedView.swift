@@ -112,7 +112,11 @@ struct FeedView: View {
                     Text("packs: \(model.store.packs.map(\.id).joined(separator: ", "))")
                     ForEach(model.store.errors, id: \.self) { Text($0).foregroundStyle(.red) }
                     if let e = model.scheduler.configError { Text(e).foregroundStyle(.red) }
+                    Text(model.currentURL).lineLimit(1).truncationMode(.middle)
                     Text(model.lastLog).lineLimit(2)
+                    ForEach(model.events.suffix(6), id: \.self) { Text($0).lineLimit(1) }
+                    Button("Reload page") { model.webView?.reload() }
+                    Button("Go to feed") { model.webView?.load(URLRequest(url: AppModel.feedURL)) }
                     Button("Arm now") { model.fireNow() }
                     Button("Reload packs") { model.reload() }
                 }
@@ -148,6 +152,7 @@ struct TikTokWebView: UIViewRepresentable {
 
         let web = WKWebView(frame: .zero, configuration: cfg)
         web.uiDelegate = context.coordinator
+        web.navigationDelegate = context.coordinator
         web.allowsBackForwardNavigationGestures = true
         web.isOpaque = false
         web.backgroundColor = .black
@@ -168,10 +173,40 @@ struct TikTokWebView: UIViewRepresentable {
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: Bridge.handlerName)
     }
 
-    /// Handles window.open (OAuth popups like "Continue with Google") by presenting a sheet.
-    final class Coordinator: NSObject, WKUIDelegate {
+    /// Handles window.open (OAuth popups like "Continue with Google") by presenting a sheet,
+    /// and page-health events (process crash, dead pages).
+    final class Coordinator: NSObject, WKUIDelegate, WKNavigationDelegate {
         let model: AppModel
         init(model: AppModel) { self.model = model }
+
+        // MARK: Navigation / health
+
+        func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+            model.currentURL = webView.url?.absoluteString ?? ""
+            model.note("→ \(webView.url?.path ?? "?")")
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            model.currentURL = webView.url?.absoluteString ?? ""
+            Task { @MainActor [model] in
+                try? await Task.sleep(for: .seconds(4))
+                model.checkPageHealth()
+            }
+        }
+
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            model.note("nav failed: \((error as NSError).code) \(error.localizedDescription)")
+        }
+
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            model.note("load failed: \((error as NSError).code)")
+        }
+
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            model.contentProcessTerminated()
+        }
+
+        // MARK: Popups
 
         func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
                      for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {

@@ -20,6 +20,8 @@ final class AppModel: ObservableObject {
     @Published var dragOffset: CGFloat = 0      // live finger translation while dragging card
     @Published var popup: PopupWindow?          // window.open target (OAuth sign-in)
     @Published var lastLog: String = ""
+    @Published var currentURL: String = ""
+    @Published private(set) var events: [String] = []   // recent navigation/recovery events
 
     let store: PackStore
     let scheduler: Scheduler
@@ -147,6 +149,64 @@ final class AppModel: ObservableObject {
     func fireNow() {
         guard phase == .hidden, let next = scheduler.nextInterrupt() else { return }
         arm(next)
+    }
+
+    // MARK: Page health
+
+    static let feedURL = URL(string: "https://www.tiktok.com/foryou")!
+    private var recoveries: [Date] = []
+
+    func note(_ s: String) {
+        let stamp = Date().formatted(date: .omitted, time: .standard)
+        events.append("\(stamp) \(s)")
+        if events.count > 12 { events.removeFirst(events.count - 12) }
+        #if DEBUG
+        print("[tq] \(s)")
+        #endif
+    }
+
+    /// Web content process died (memory pressure). WKWebView shows blank until reloaded.
+    func contentProcessTerminated() {
+        note("web process terminated → reload")
+        recover(reason: "process-terminated")
+    }
+
+    /// A few seconds after a page load, check it isn't a dead page (no text, no video, no controls).
+    func checkPageHealth() {
+        guard let web = webView else { return }
+        let js = """
+        (function(){
+          var b = document.body; if (!b) return 'nobody';
+          var text = (b.innerText || '').trim().length;
+          var things = document.querySelectorAll('video,input,button,a,[role=button]').length;
+          return (text < 20 && things === 0) ? 'dead' : 'ok:' + text + ':' + things;
+        })()
+        """
+        web.evaluateJavaScript(js) { [weak self] result, _ in
+            guard let self else { return }
+            let r = result as? String ?? "unknown"
+            if r == "dead" || r == "nobody" {
+                self.note("dead page at \(self.currentURL) → recover")
+                self.recover(reason: "dead-page")
+            }
+        }
+    }
+
+    /// Reload once; second recovery within a minute goes to the feed URL; then give up until later.
+    private func recover(reason: String) {
+        guard let web = webView else { return }
+        let now = Date()
+        recoveries = recoveries.filter { now.timeIntervalSince($0) < 60 }
+        recoveries.append(now)
+        switch recoveries.count {
+        case 1:
+            web.reload()
+        case 2:
+            note("second recovery → load feed URL")
+            web.load(URLRequest(url: AppModel.feedURL))
+        default:
+            note("recovery limit hit (\(reason)); leaving page as is")
+        }
     }
 
     // MARK: Feed control
