@@ -312,6 +312,18 @@
       window.scrollBy({ top: h, behavior: 'smooth' });
       return 'window';
     },
+    // Debug: log every layer under the screen centre and what the page thinks it is.
+    inspect: function () {
+      var x = innerWidth / 2, y = innerHeight / 2;
+      log('ua ' + navigator.userAgent.slice(0, 100) + ' | ' + navigator.platform + ' | ' + innerWidth + 'x' + innerHeight);
+      var els = document.elementsFromPoint(x, y).slice(0, 10);
+      els.forEach(function (e, i) {
+        var cs = getComputedStyle(e);
+        log('L' + i + ' ' + e.tagName + ' ' + label(e) + ' pos=' + cs.position + ' bg=' + cs.backgroundColor +
+            ' op=' + cs.opacity + ' pe=' + cs.pointerEvents + ' z=' + cs.zIndex + ' txt=' + (e.innerText || '').replace(/\s+/g, ' ').slice(0, 30));
+      });
+      return els.length;
+    },
     seenCount: function () { return seen.size; },
     resetSeen: function () { seen.clear(); }
   };

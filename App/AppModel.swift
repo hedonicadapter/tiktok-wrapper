@@ -159,6 +159,8 @@ final class AppModel: ObservableObject {
     // MARK: Page health
 
     static let feedURL = URL(string: "https://www.tiktok.com/foryou")!
+    /// Exactly what Safari on macOS sends. No "Mobile" token anywhere, or TikTok serves mobile web.
+    static let desktopUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15"
     private var recoveries: [Date] = []
 
     func note(_ s: String) {

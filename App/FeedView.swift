@@ -117,6 +117,9 @@ struct FeedView: View {
                     Text(model.currentURL).lineLimit(1).truncationMode(.middle)
                     Text(model.lastLog).lineLimit(2)
                     ForEach(model.events.suffix(6), id: \.self) { Text($0).lineLimit(1) }
+                    Button("Inspect screen") {
+                        model.webView?.evaluateJavaScript("window.__tq && window.__tq.inspect(); 0", completionHandler: nil)
+                    }
                     Button("Copy log") { UIPasteboard.general.string = model.debugReport }
                     Button("Reload page") { model.webView?.reload() }
                     Button("Go to feed") { model.webView?.load(URLRequest(url: AppModel.feedURL)) }
@@ -145,18 +148,22 @@ struct TikTokWebView: UIViewRepresentable {
         cfg.allowsInlineMediaPlayback = true
         cfg.mediaTypesRequiringUserActionForPlayback = []
         cfg.websiteDataStore = .default()
-        // Default WKWebView UA lacks the "Version/x Safari/x" suffix; Google OAuth refuses
-        // sign-in from anything that doesn't look like real Safari. This appends the suffix
-        // to the real device UA, giving exactly what Mobile Safari sends.
-        cfg.applicationNameForUserAgent = "Version/17.0 Mobile/15E148 Safari/604.1"
-        cfg.preferences.javaScriptCanOpenWindowsAutomatically = true
-        if model.scheduler.config.useDesktopSite {
+        let desktop = model.scheduler.config.useDesktopSite
+        if desktop {
             cfg.defaultWebpagePreferences.preferredContentMode = .desktop
+        } else {
+            // Default WKWebView UA lacks the "Version/x Safari/x" suffix; Google OAuth refuses
+            // sign-in from anything that doesn't look like real Safari. Mobile mode only: in
+            // desktop mode this suffix (it contains "Mobile") makes TikTok serve mobile web.
+            cfg.applicationNameForUserAgent = "Version/17.0 Mobile/15E148 Safari/604.1"
         }
+        cfg.preferences.javaScriptCanOpenWindowsAutomatically = true
         cfg.userContentController.add(model.bridge, name: Bridge.handlerName)
         cfg.userContentController.addUserScript(model.makeUserScript())
 
         let web = WKWebView(frame: .zero, configuration: cfg)
+        if desktop { web.customUserAgent = AppModel.desktopUserAgent }
+        model.note(desktop ? "site: desktop (Mac Safari UA)" : "site: mobile")
         web.uiDelegate = context.coordinator
         web.navigationDelegate = context.coordinator
         web.allowsBackForwardNavigationGestures = true
@@ -192,6 +199,10 @@ struct TikTokWebView: UIViewRepresentable {
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
                      decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
             guard let url = navigationAction.request.url else { return decisionHandler(.allow) }
+            let p = url.path.lowercased()
+            if p.contains("redirect") || p.contains("download") {
+                model.note("policy \(navigationAction.targetFrame?.isMainFrame == false ? "subframe" : "main") \(url.host ?? "?")\(url.path) → \(Coordinator.isAppHandoff(url) ? "cancel" : "allow")")
+            }
             if Coordinator.isAppHandoff(url) {
                 model.note("blocked app hand-off: \(url.absoluteString.prefix(80))")
                 return decisionHandler(.cancel)
@@ -251,6 +262,7 @@ struct TikTokWebView: UIViewRepresentable {
             }
             // Must use the supplied configuration so the popup shares the opener's session.
             let popup = WKWebView(frame: .zero, configuration: configuration)
+            popup.customUserAgent = webView.customUserAgent
             popup.uiDelegate = self
             if #available(iOS 16.4, *) { popup.isInspectable = true }
             model.popup = PopupWindow(webView: popup)
