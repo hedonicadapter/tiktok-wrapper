@@ -3,7 +3,7 @@ import Foundation
 /// SM-2 lite. Picks the most overdue item; unseen items first. Intervals in days,
 /// but interrupts fire many times per day so anything not yet due falls back to weighted-wrong.
 struct SpacedStrategy: ItemStrategy {
-    func pick(itemIds: [String], progress: PackProgress) -> Int {
+    func pick(itemIds: [String], progress: PackProgress) -> Int? {
         guard !itemIds.isEmpty else { return 0 }
         let now = Date()
         // Unseen first
@@ -22,7 +22,7 @@ struct SpacedStrategy: ItemStrategy {
         return WeightedWrongStrategy().pick(itemIds: itemIds, progress: progress)
     }
 
-    func update(stats: inout ItemStats, result: InterruptResult) {
+    func update(stats: inout ItemStats, result: InterruptResult, turn: Int) {
         switch result {
         case .correct, .done:
             if stats.intervalDays == 0 { stats.intervalDays = 1 }

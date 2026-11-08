@@ -35,7 +35,7 @@ const items = source === 'friberg' ? importFriberg(repo, packDir) : importLemons
 
 const manifest = {
   id: src.id, title: src.title, kind: 'quiz', items: 'items.json',
-  strategy: 'weighted-wrong', unlock: 'correct', source: src.url,
+  strategy: 'mastery', unlock: 'correct', source: src.url,
 };
 fs.writeFileSync(path.join(packDir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
 fs.writeFileSync(path.join(packDir, 'items.json'), JSON.stringify(items, null, 1) + '\n');

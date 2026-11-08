@@ -75,8 +75,8 @@ final class Scheduler: ObservableObject {
 
     /// Weighted pick among loaded packs with weight > 0. Packs missing from config get weight 0
     /// unless config has no packs section at all, then every loaded pack gets weight 1.
-    func pickPack() -> LoadedPack? {
-        let available = store.packs
+    func pickPack(excluding: Set<String> = []) -> LoadedPack? {
+        let available = store.packs.filter { !excluding.contains($0.id) }
         guard !available.isEmpty else { return nil }
         let weighted: [(LoadedPack, Double)] = available.compactMap { p in
             let w = config.packs.isEmpty ? 1.0 : (config.packs[p.id] ?? 0)
@@ -93,9 +93,14 @@ final class Scheduler: ObservableObject {
     }
 
     func nextInterrupt() -> ScheduledInterrupt? {
-        guard let pack = pickPack() else { return nil }
-        let progress = loadProgress(packId: pack.id)
-        guard let picked = pack.next(progress: progress) else { return nil }
+        // A pack with everything retired returns nil; fall through to the others.
+        var exhausted = Set<String>()
+        var choice: (pack: LoadedPack, picked: (itemId: String, interrupt: Interrupt))?
+        while choice == nil, let pack = pickPack(excluding: exhausted) {
+            if let picked = pack.next(progress: loadProgress(packId: pack.id)) { choice = (pack, picked) }
+            else { exhausted.insert(pack.id) }
+        }
+        guard let (pack, picked) = choice else { return nil }
         var unlock = pack.unlock
         if config.hardMode, pack.kind == .quiz || pack.kind == .flashcard { unlock = .correct }
         return ScheduledInterrupt(packId: pack.id, packTitle: pack.title, itemId: picked.itemId,

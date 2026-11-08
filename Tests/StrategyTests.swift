@@ -185,3 +185,71 @@ final class PackStoreTests: XCTestCase {
         XCTAssertGreaterThan(within5, 40)
     }
 }
+
+final class MasteryTests: XCTestCase {
+    private let ids = ["a", "b", "c", "d", "e", "f"]
+
+    /// Serve one turn: pick, record result via the strategy like LoadedPack does.
+    private func serve(_ m: MasteryStrategy, _ p: inout PackProgress, answer: (String) -> InterruptResult) -> String? {
+        guard let i = m.pick(itemIds: ids, progress: p) else { return nil }
+        let id = ids[i]
+        var s = p.stats(for: id)
+        let r = answer(id)
+        s.shown += 1
+        switch r { case .correct, .done: s.correctStreak += 1; case .wrong, .skipped: s.correctStreak = 0 }
+        p.served = p.turn + 1
+        m.update(stats: &s, result: r, turn: p.turn)
+        p.items[id] = s
+        p.lastItemId = id
+        return id
+    }
+
+    func testWrongComesBackAfterTwoOthers() {
+        let m = MasteryStrategy(random: { _ in 0 })
+        var p = PackProgress()
+        let first = serve(m, &p) { _ in .wrong }!
+        let next3 = (0..<3).map { _ in serve(m, &p) { _ in .correct }! }
+        XCTAssertNotEqual(next3[0], first)
+        XCTAssertNotEqual(next3[1], first)
+        XCTAssertEqual(next3[2], first, "wrong item due again on the third turn")
+    }
+
+    func testRetiresAfterStreakAndNeverReturns() {
+        let m = MasteryStrategy(random: { _ in 0 })
+        var p = PackProgress()
+        // Everything wrong once, then always right: each needs 3 rights in a row.
+        var seen = Set<String>()
+        for _ in 0..<400 {
+            guard let id = serve(m, &p, answer: { id in seen.insert(id).inserted ? .wrong : .correct }) else { break }
+            _ = id
+        }
+        for id in ids { XCTAssertEqual(p.items[id]?.retired, true, id); XCTAssertEqual(p.items[id]?.correctStreak, 3) }
+        XCTAssertNil(m.pick(itemIds: ids, progress: p), "all retired: pack has nothing left")
+    }
+
+    func testRightOnFirstSightNeedsOneConfirmation() {
+        let m = MasteryStrategy(random: { _ in 0 })
+        var s = ItemStats(); s.shown = 1; s.correctStreak = 1
+        m.update(stats: &s, result: .correct, turn: 1)
+        XCTAssertEqual(s.correctStreak, 2); XCTAssertEqual(s.retired, false); XCTAssertEqual(s.dueTurn, 26)
+        s.shown = 2; s.correctStreak = 3
+        m.update(stats: &s, result: .correct, turn: 26)
+        XCTAssertEqual(s.retired, true)
+    }
+
+    func testWrongResetsStreakAndUnretires() {
+        let m = MasteryStrategy()
+        var s = ItemStats(); s.shown = 5; s.correctStreak = 0; s.retired = true
+        m.update(stats: &s, result: .wrong, turn: 10)
+        XCTAssertEqual(s.retired, false); XCTAssertEqual(s.dueTurn, 12)
+    }
+
+    func testDoesNotRepeatLastWhenOthersExist() {
+        let m = MasteryStrategy(random: { _ in 0 })
+        var p = PackProgress()
+        p.served = 5
+        p.items["a"] = ItemStats(shown: 1, correct: 0, wrong: 1, correctStreak: 0, dueTurn: 3)
+        p.lastItemId = "a"
+        XCTAssertNotEqual(m.pick(itemIds: ids, progress: p), 0)
+    }
+}

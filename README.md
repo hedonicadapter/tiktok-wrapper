@@ -53,7 +53,8 @@ Edits take effect when the app returns to foreground (or tap "Reload packs" in D
   "title": "Körkortsteori",
   "kind": "quiz",                 // quiz | flashcard | prompt | read | timer | web
   "items": "items.json",          // optional, default items.json
-  "strategy": "weighted-wrong",   // sequential | random | weighted-wrong | spaced
+  "strategy": "mastery",          // mastery | sequential | random | spaced  (weighted-wrong = mastery)
+  "masteryStreak": 3,             // mastery: right answers in a row that retire a question
   "unlock": "correct"             // correct | any-answer | done
 }
 ```
@@ -109,6 +110,17 @@ right, or a timer/read/web countdown ending, completes the card in place; there 
 button. The write-a-sentence prompt keeps its Done button.
 
 If the app is killed with a card pending, it comes back on relaunch already on screen.
+
+## Mastery (default for quiz and flashcard packs)
+
+Counted in that pack's own interrupts:
+
+- **Wrong** → comes back after 2 other questions from the pack, and its streak resets.
+- **Right** → comes back after 4, then 12, then 36 questions.
+- **Right on first sight** → treated as known: one more right answer later retires it.
+- **`masteryStreak` right in a row** (default 3) → retired, never shown again.
+- Overdue questions come first, then unseen ones, then whichever is due soonest. A pack with
+  everything retired steps aside for the other packs. The badge panel shows `retired/total`.
 
 ## Unlock rules
 

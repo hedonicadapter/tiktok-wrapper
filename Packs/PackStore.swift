@@ -38,13 +38,27 @@ final class PackStore: ObservableObject {
            let src = Bundle.main.url(forResource: "config.default", withExtension: "json") {
             try? fm.copyItem(at: src, to: configURL)
         }
-        if !fm.fileExists(atPath: hideSelectorsURL.path),
-           let src = Bundle.main.url(forResource: "hide-selectors", withExtension: "json") {
-            try? fm.copyItem(at: src, to: hideSelectorsURL)
+        if let src = Bundle.main.url(forResource: "hide-selectors", withExtension: "json") {
+            if !fm.fileExists(atPath: hideSelectorsURL.path) {
+                try? fm.copyItem(at: src, to: hideSelectorsURL)
+            } else if selectorsVersion(at: hideSelectorsURL) < selectorsVersion(at: src) {
+                // Newer bundled list: replace, keeping the old one next to it.
+                let backup = documents.appendingPathComponent("hide-selectors.old.json")
+                try? fm.removeItem(at: backup)
+                try? fm.moveItem(at: hideSelectorsURL, to: backup)
+                try? fm.copyItem(at: src, to: hideSelectorsURL)
+            }
         }
     }
 
     // MARK: Hide / click selectors
+
+    /// Legacy plain-array files and files without a version count as 0.
+    func selectorsVersion(at url: URL) -> Int {
+        guard let data = try? Data(contentsOf: url),
+              let obj = try? JSONDecoder().decode(NagSelectors.self, from: data) else { return 0 }
+        return obj.version ?? 0
+    }
 
     /// Documents copy wins (editable in Files app); bundle copy is fallback.
     /// Accepts `{"hide": [...], "click": [...]}` or a legacy plain array (hide only).

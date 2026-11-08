@@ -27,6 +27,68 @@
     (document.head || document.documentElement).appendChild(style);
   }
 
+  // --- desktop feed: make it look like the app ----------------------------
+  // TikTok's desktop feed sizes each item by the video's aspect ratio and left-aligns it,
+  // leaving a dead strip on the right on a phone. Fill the column instead; portrait videos
+  // cover the screen like the app, landscape ones letterbox. Only applies when the desktop
+  // feed is detected (html.tq-desktop), keyed on data-e2e hooks, not hashed class names.
+  var DESKTOP_CSS = [
+    'html.tq-desktop, html.tq-desktop body { background: #000 !important; }',
+    '.tq-desktop [data-e2e="anchoring-player-column"] { flex: 1 1 auto !important; width: auto !important; max-width: none !important; margin: 0 !important; padding: 0 !important; }',
+    '.tq-desktop [data-e2e="recommend-list-item-container"] { width: 100% !important; max-width: none !important; padding: 0 !important; margin: 0 !important; justify-content: stretch !important; }',
+    '.tq-desktop [data-e2e="recommend-list-item-container"] > * { width: 100% !important; max-width: none !important; }',
+    '.tq-desktop [data-e2e="feed-video"] { width: 100% !important; max-width: none !important; height: 100% !important; aspect-ratio: auto !important; border-radius: 0 !important; background: #000 !important; }',
+    '.tq-desktop [data-e2e="feed-video"] video { position: absolute !important; inset: 0 !important; transform: none !important; translate: none !important; width: 100% !important; height: 100% !important; max-width: none !important; max-height: none !important; object-fit: contain !important; }',
+    '.tq-desktop [data-e2e="feed-video"] video[data-tq-fit="cover"] { object-fit: cover !important; }',
+    '.tq-desktop [data-e2e="anchoring-ambient"] { display: none !important; }',
+    '.tq-desktop [data-e2e="anchoring-scroll-controls"] { opacity: 0 !important; pointer-events: none !important; }'
+  ].join('\n');
+
+  function applyDesktopMode() {
+    var isDesktop = !!document.querySelector('[data-e2e="anchoring-player-column"]');
+    var root = document.documentElement;
+    if (isDesktop && !root.classList.contains('tq-desktop')) {
+      root.classList.add('tq-desktop');
+      var st = document.createElement('style');
+      st.id = '__tq_desktop';
+      st.textContent = DESKTOP_CSS;
+      (document.head || root).appendChild(st);
+      log('desktop layout fixes on');
+    }
+    if (!isDesktop) return;
+    // Portrait videos fill the screen (like the app); wide ones keep black bars.
+    document.querySelectorAll('[data-e2e="feed-video"] video').forEach(function (v) {
+      if (!v.videoWidth) return;
+      var fit = v.videoWidth / v.videoHeight < 0.8 ? 'cover' : 'contain';
+      if (v.getAttribute('data-tq-fit') !== fit) v.setAttribute('data-tq-fit', fit);
+    });
+  }
+
+  // After the column resizes (comments panel opened/closed, rotation) the snap list can be
+  // left between items. Re-align the item nearest the top once things settle.
+  var resnapTimer = null, touching = false;
+  function resnap() {
+    if (touching) return;
+    var item = null, best = Infinity;
+    document.querySelectorAll('[data-e2e="recommend-list-item-container"]').forEach(function (a) {
+      var list = a.parentElement; if (!list) return;
+      var d = Math.abs(a.getBoundingClientRect().top - list.getBoundingClientRect().top);
+      if (d < best) { best = d; item = a; }
+    });
+    if (item && best > 4) { item.scrollIntoView({ block: 'start' }); log('re-snapped feed (' + Math.round(best) + 'px off)'); }
+  }
+  var ro = ('ResizeObserver' in window) ? new ResizeObserver(function () {
+    clearTimeout(resnapTimer); resnapTimer = setTimeout(resnap, 300);
+  }) : null;
+  function watchColumn() {
+    var col = document.querySelector('[data-e2e="anchoring-player-column"]');
+    if (ro && col && !col.__tqWatched) { col.__tqWatched = true; ro.observe(col); }
+  }
+  document.addEventListener('touchstart', function () { touching = true; }, { passive: true, capture: true });
+  document.addEventListener('touchend', function () {
+    setTimeout(function () { touching = false; }, 400);
+  }, { passive: true, capture: true });
+
   // --- auto-dismiss nag dialogs -------------------------------------------
   var clickedRecently = 0;
   function dismissNags() {
@@ -224,14 +286,15 @@
       for (var j = 0; j < added.length; j++) scan(added[j]);
     }
     clearTimeout(nagTimer);
-    nagTimer = setTimeout(function () { dismissNags(); scanNags(); }, 150);
+    nagTimer = setTimeout(function () { dismissNags(); scanNags(); applyDesktopMode(); watchColumn(); }, 150);
   });
 
   function start() {
     installHideCSS();
     dismissNags();
     scanNags();
-    setInterval(scanNags, 1000);   // sheets can animate in without DOM mutations
+    applyDesktopMode();
+    setInterval(function () { scanNags(); applyDesktopMode(); watchColumn(); }, 1000);   // sheets can animate in without DOM mutations
     scan(document.body);
     mo.observe(document.body, { childList: true, subtree: true });
     log('feed-observer installed');

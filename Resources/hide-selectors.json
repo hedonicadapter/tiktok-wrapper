@@ -1,4 +1,5 @@
 {
+  "version": 3,
   "hide": [
     "[data-e2e='open-app-banner']",
     "[data-e2e='bottom-banner']",

@@ -3,6 +3,6 @@
   "title": "Körkortsteori",
   "kind": "quiz",
   "items": "items.json",
-  "strategy": "weighted-wrong",
+  "strategy": "mastery",
   "unlock": "correct"
 }

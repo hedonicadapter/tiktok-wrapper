@@ -125,7 +125,7 @@ struct FeedView: View {
             }
             if showDebug {
                 VStack(alignment: .trailing, spacing: 6) {
-                    Text("packs: \(model.store.packs.map(\.id).joined(separator: ", "))")
+                    Text("packs: \(model.packSummary)")
                     ForEach(model.store.errors, id: \.self) { Text($0).foregroundStyle(.red) }
                     if let e = model.scheduler.configError { Text(e).foregroundStyle(.red) }
                     Text(model.currentURL).lineLimit(1).truncationMode(.middle)

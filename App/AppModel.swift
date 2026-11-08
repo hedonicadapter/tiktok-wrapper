@@ -183,12 +183,20 @@ final class AppModel: ObservableObject {
         #endif
     }
 
+    /// "korkort-emil 12/726 retired, …" — mastery progress per pack.
+    var packSummary: String {
+        store.packs.map { p in
+            let r = p.retiredCount(progress: scheduler.loadProgress(packId: p.id))
+            return r > 0 ? "\(p.id) \(r)/\(p.itemCount) retired" : "\(p.id) (\(p.itemCount))"
+        }.joined(separator: ", ")
+    }
+
     /// Everything the debug panel knows, for pasting into a bug report.
     var debugReport: String {
         var lines = ["ScrollGate \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")",
                      "url: \(currentURL)",
                      "count: \(counter.count)/\(scheduler.config.interval)  desktopSite: \(scheduler.config.useDesktopSite)",
-                     "packs: \(store.packs.map(\.id).joined(separator: ", "))"]
+                     "packs: \(packSummary)"]
         lines += store.errors.map { "pack error: \($0)" }
         if let e = scheduler.configError { lines.append("config error: \(e)") }
         lines += events

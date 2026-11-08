@@ -2,6 +2,7 @@ import Foundation
 
 /// hide-selectors.json: CSS selectors to hide, and nag buttons to auto-click ("Not now").
 struct NagSelectors: Codable, Equatable {
+    var version: Int? = nil     // bundled file is copied over older Documents copies
     var hide: [String] = []
     var click: [String] = []
 }
@@ -16,6 +17,7 @@ struct PackManifest: Codable {
     let strategy: StrategyName?     // default sequential
     let unlock: UnlockRule?         // default per kind
     let hideSelectors: [String]?    // optional extra CSS hide list for `web` kind
+    let masteryStreak: Int?         // mastery: right answers in a row that retire an item (default 3)
 
     var itemsFile: String { items ?? "items.json" }
     var strategyName: StrategyName { strategy ?? .sequential }
@@ -31,7 +33,8 @@ struct PackManifest: Codable {
 enum StrategyName: String, Codable {
     case sequential
     case random
-    case weightedWrong = "weighted-wrong"
+    case weightedWrong = "weighted-wrong"   // now an alias of mastery
+    case mastery
     case spaced
 }
 
@@ -133,12 +136,18 @@ struct ItemStats: Codable, Equatable {
     var easiness = 2.5
     var intervalDays = 0.0
     var dueAt: Date?
+    // mastery (optional so progress saved by older builds still decodes)
+    var dueTurn: Int?           // pack turn at which this item is due again
+    var retired: Bool?          // answered right `masteryStreak` times in a row: never shown again
 }
 
 struct PackProgress: Codable, Equatable {
     var items: [String: ItemStats] = [:]
     var cursor = 0                  // sequential strategy position
     var lastItemId: String?
+    var served: Int?                // interrupts this pack has served (mastery clock)
+
+    var turn: Int { served ?? 0 }
 
     func stats(for id: String) -> ItemStats { items[id] ?? ItemStats() }
 }
@@ -152,7 +161,7 @@ protocol InterruptPack: AnyObject {
     var kind: InterruptKind { get }
     var unlock: UnlockRule { get }
     var itemCount: Int { get }
-    func next(progress: PackProgress) -> (itemId: String, interrupt: Interrupt)?
+    func next(progress: PackProgress) -> (itemId: String, interrupt: Interrupt)?   // nil: nothing left to show
     func record(itemId: String, result: InterruptResult, progress: inout PackProgress)
 }
 
@@ -177,14 +186,18 @@ final class LoadedPack: InterruptPack {
         self.directory = directory
         self.hideSelectors = manifest.hideSelectors ?? []
         self.items = items
-        self.strategy = makeStrategy(manifest.strategyName)
+        self.strategy = makeStrategy(manifest.strategyName, masteryStreak: manifest.masteryStreak ?? 3)
     }
 
     func next(progress: PackProgress) -> (itemId: String, interrupt: Interrupt)? {
-        guard !items.isEmpty else { return nil }
-        let idx = strategy.pick(itemIds: items.map(\.id), progress: progress)
+        guard !items.isEmpty, let idx = strategy.pick(itemIds: items.map(\.id), progress: progress) else { return nil }
         let item = items[min(max(idx, 0), items.count - 1)]
         return (item.id, item.interrupt)
+    }
+
+    /// Items the mastery strategy has retired.
+    func retiredCount(progress: PackProgress) -> Int {
+        items.filter { progress.items[$0.id]?.retired == true }.count
     }
 
     func record(itemId: String, result: InterruptResult, progress: inout PackProgress) {
@@ -204,7 +217,8 @@ final class LoadedPack: InterruptPack {
         case .skipped:
             s.correctStreak = 0
         }
-        strategy.update(stats: &s, result: result)
+        progress.served = progress.turn + 1
+        strategy.update(stats: &s, result: result, turn: progress.turn)
         progress.items[itemId] = s
         progress.lastItemId = itemId
         if let i = items.firstIndex(where: { $0.id == itemId }) {

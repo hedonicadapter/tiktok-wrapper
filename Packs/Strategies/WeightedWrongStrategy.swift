@@ -8,7 +8,7 @@ struct WeightedWrongStrategy: ItemStrategy {
         max(0.2, 1.0 + 2.0 * Double(s.wrong) - 0.5 * Double(s.correctStreak))
     }
 
-    func pick(itemIds: [String], progress: PackProgress) -> Int {
+    func pick(itemIds: [String], progress: PackProgress) -> Int? {
         guard !itemIds.isEmpty else { return 0 }
         let weights = itemIds.map { Self.weight(progress.stats(for: $0)) }
         let draw = { () -> Int in
