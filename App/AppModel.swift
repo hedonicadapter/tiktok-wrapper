@@ -133,14 +133,24 @@ final class AppModel: ObservableObject {
         phase = .completed(result)
     }
 
-    /// Card swiped away (either direction). Feed advances one video and resumes.
+    /// Swipe down on an unanswered card: back to the video it interrupted. The card stays
+    /// queued (armed) and returns on the next swipe up, so it can be postponed but not skipped.
+    func postponeCard() {
+        guard phase == .shown else { return }
+        phase = .armed
+        dragOffset = 0
+        resumeFeed()
+        note("card postponed (swiped back)")
+    }
+
+    /// Card swiped away. Up: feed advances one video. Down: back to the video before the card.
     func dismissCard(up: Bool = true) {
         guard case .completed = phase else { return }
         dismissUp = up
         phase = .dismissing
         counter.reset()
         applyScrollLock(unlock: true)
-        advanceFeed()
+        if up { advanceFeed() }
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(350))
             card = nil
@@ -260,6 +270,11 @@ final class AppModel: ObservableObject {
 
     func resumeFeed() {
         webView?.evaluateJavaScript("window.__tq && window.__tq.resume(); 0", completionHandler: nil)
+    }
+
+    /// Previous video (armed state: the shield blocks the web view's own scrolling).
+    func previousVideo() {
+        webView?.evaluateJavaScript("window.__tq && window.__tq.prev(); 0", completionHandler: nil)
     }
 
     /// Best effort: scroll feed one page so the card feels inserted between two videos.

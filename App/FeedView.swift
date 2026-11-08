@@ -43,6 +43,7 @@ struct FeedView: View {
                     .frame(width: geo.size.width, height: h)
                     .offset(y: cardOffset(height: h))
                     .gesture(dismissDrag(height: h), including: isCompleted ? .all : .subviews)
+                    .simultaneousGesture(backDrag(height: h), including: model.phase == .shown ? .all : .none)
                     .transition(.identity)
                     .zIndex(1)
                 }
@@ -75,7 +76,7 @@ struct FeedView: View {
         switch model.phase {
         case .hidden: return h
         case .armed: return max(0, h + model.dragOffset)          // dragging up from below
-        case .shown: return 0
+        case .shown: return max(0, model.dragOffset)                // pulled down to go back
         case .completed: return model.dragOffset                  // follows the finger either way
         case .dismissing: return model.dismissUp ? -h : h
         }
@@ -88,9 +89,35 @@ struct FeedView: View {
                 model.dragOffset = min(0, v.translation.height)
             }
             .onEnded { v in
-                let commit = -v.translation.height > h * 0.2 || -v.predictedEndTranslation.height > h * 0.5
+                let dy = v.translation.height, flick = v.predictedEndTranslation.height
+                // Swipe down while armed: previous video (web view scrolling is locked).
+                if dy > 60 && abs(dy) > abs(v.translation.width) {
+                    model.dragOffset = 0
+                    model.previousVideo()
+                    return
+                }
+                let commit = -dy > h * 0.2 || -flick > h * 0.5
                 withAnimation(.spring(duration: 0.35, bounce: 0)) {
                     if commit { model.showCard() } else { model.dragOffset = 0 }
+                }
+            }
+    }
+
+    /// Unanswered card: a clear downward swipe returns to the video (card stays queued).
+    /// Simultaneous so quiz buttons and scroll views keep working; only commits on a deliberate pull.
+    private func backDrag(height h: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 14, coordinateSpace: .global)
+            .onChanged { v in
+                guard model.phase == .shown else { return }
+                let dy = v.translation.height
+                model.dragOffset = (dy > 0 && dy > abs(v.translation.width)) ? dy : 0
+            }
+            .onEnded { v in
+                guard model.phase == .shown else { return }
+                let dy = v.translation.height, flick = v.predictedEndTranslation.height
+                let commit = dy > abs(v.translation.width) && (dy > h * 0.25 || flick > h * 0.6)
+                withAnimation(.spring(duration: 0.35, bounce: 0)) {
+                    if commit { model.postponeCard() } else { model.dragOffset = 0 }
                 }
             }
     }

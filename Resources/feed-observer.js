@@ -71,6 +71,18 @@
     idleResnap();
   }
 
+  // Tapping a video on a profile opens TikTok's desktop "browse" dialog: a side-by-side layout
+  // whose comments/like column lands off-screen on a phone, with no top inset. Loading the same
+  // URL as a page gives the feed layout instead (side buttons, fits). One reload per URL.
+  function escapeBrowseDialog() {
+    var bv = document.querySelector('[role="dialog"] [data-e2e="browse-video"]');
+    if (!bv || !/\/video\/\d+/.test(location.pathname)) return;
+    var key = '__tq_browse_' + location.pathname;
+    try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1'); } catch (e) { return; }
+    log('browse dialog → reload as page ' + location.pathname);
+    location.replace(location.href);
+  }
+
   // After the column resizes (comments panel opened/closed, rotation) the snap list can be
   // left between items. Re-align the item nearest the top once things settle.
   var resnapTimer = null, touching = false;
@@ -310,7 +322,7 @@
       for (var j = 0; j < added.length; j++) scan(added[j]);
     }
     clearTimeout(nagTimer);
-    nagTimer = setTimeout(function () { dismissNags(); scanNags(); applyDesktopMode(); watchColumn(); }, 150);
+    nagTimer = setTimeout(function () { dismissNags(); scanNags(); applyDesktopMode(); watchColumn(); escapeBrowseDialog(); }, 150);
   });
 
   function start() {
@@ -318,7 +330,7 @@
     dismissNags();
     scanNags();
     applyDesktopMode();
-    setInterval(function () { scanNags(); applyDesktopMode(); watchColumn(); }, 1000);   // sheets can animate in without DOM mutations
+    setInterval(function () { scanNags(); applyDesktopMode(); watchColumn(); escapeBrowseDialog(); }, 1000);   // sheets can animate in without DOM mutations
     scan(document.body);
     mo.observe(document.body, { childList: true, subtree: true });
     log('feed-observer installed');
@@ -418,6 +430,17 @@
             ' op=' + cs.opacity + ' pe=' + cs.pointerEvents + ' z=' + cs.zIndex + ' txt=' + (e.innerText || '').replace(/\s+/g, ' ').slice(0, 30));
       });
       return els.length;
+    },
+    // Previous video (mirror of next).
+    prev: function () {
+      var btn = document.querySelector('[data-e2e="feed-navigation-prev"]');
+      if (btn) { btn.click(); return 'button'; }
+      var v = mostVisibleVideo();
+      var c = scrollContainer(v);
+      var h = c ? c.clientHeight : window.innerHeight;
+      if (c) { c.scrollBy({ top: -h, behavior: 'smooth' }); return 'container'; }
+      window.scrollBy({ top: -h, behavior: 'smooth' });
+      return 'window';
     },
     seenCount: function () { return seen.size; },
     resetSeen: function () { seen.clear(); }

@@ -105,7 +105,10 @@ Tap the badge → **Copy log** to copy URL, packs, nag dismissals and blocked ap
 The interrupt is a *feed card*, not a modal. After video N is counted, the next swipe up
 drags the card in from the bottom exactly like the next video would. TikTok never sees that
 swipe. Once the unlock rule is met the card shows "Swipe to continue"; swiping it
-away, up or down, scrolls the feed one video (`__tq.next()`) and resumes playback. Answering
+away upward scrolls the feed one video (`__tq.next()`) and resumes playback; downward returns
+to the video before the card. Pulling an *unanswered* card down goes back to the video too, but
+the card stays queued and comes back on the next swipe up: postpone, not skip. While it waits,
+swiping down goes to earlier videos. Answering
 right, or a timer/read/web countdown ending, completes the card in place; there is no Continue
 button. The write-a-sentence prompt keeps its Done button.
 
