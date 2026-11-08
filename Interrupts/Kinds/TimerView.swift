@@ -38,13 +38,13 @@ struct TimerView: View {
             .frame(width: 200, height: 200)
 
             Spacer()
-            UnlockButton(title: remaining > 0 ? "…" : "Done", enabled: remaining <= 0) { onComplete(.done) }
         }
         .task {
             while remaining > 0 {
                 try? await Task.sleep(for: .seconds(1))
                 remaining -= 1
             }
+            onComplete(.done)
         }
     }
 }

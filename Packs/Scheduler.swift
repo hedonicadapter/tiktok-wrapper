@@ -7,7 +7,9 @@ struct SchedulerConfig: Codable, Equatable {
     var packs: [String: Double] = [:]      // pack id -> weight; 0 parks it
     var quietHours: [String]? = nil        // ["23:00", "07:00"]
     var debug: Bool? = nil                 // show counter badge + debug panel (default true)
-    var desktopSite: Bool? = nil           // request tiktok.com desktop layout (fallback if mobile web gates the feed)
+    var desktopSite: Bool? = nil           // tiktok.com desktop layout (default true: mobile web caps swipes and redirects to the app)
+
+    var useDesktopSite: Bool { desktopSite ?? true }
 
     var showDebug: Bool { debug ?? true }
 

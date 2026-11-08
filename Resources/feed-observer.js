@@ -83,7 +83,7 @@
     if (cs.position !== 'fixed' || cs.pointerEvents === 'none' || !isVisible(el)) return false;
     var r = el.getBoundingClientRect();
     if (r.width < innerWidth * 0.9 || r.height < innerHeight * 0.6) return false;
-    var a = alpha(cs.backgroundColor);
+    var a = alpha(cs.backgroundColor) * parseFloat(cs.opacity);   // rgba(0,0,0,.5) or #000 at opacity .5
     return a >= 0.15 && a <= 0.95 && !(el.innerText || '').trim() && !el.querySelector('video');
   }
   function findDismiss(root) {
@@ -237,6 +237,36 @@
     log('feed-observer installed');
   }
 
+  // --- swipe → next/prev on layouts that page with buttons (desktop site) ----
+  // If a vertical swipe didn't move the feed natively, press the site's own nav button.
+  function inScrollable(el) {
+    for (var n = el; n && n !== document.body; n = n.parentElement) {
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(n.tagName) || n.isContentEditable) return true;
+      var cs = getComputedStyle(n);
+      if (/(auto|scroll)/.test(cs.overflowY) && n.scrollHeight > n.clientHeight + 4 && !n.querySelector('video')) return true;
+    }
+    return false;
+  }
+  var touch0 = null;
+  document.addEventListener('touchstart', function (e) {
+    if (e.touches.length !== 1 || inScrollable(e.target)) { touch0 = null; return; }
+    var v = mostVisibleVideo();
+    touch0 = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now(), v: v, top: v ? v.getBoundingClientRect().top : 0 };
+  }, { passive: true, capture: true });
+  document.addEventListener('touchend', function (e) {
+    var s = touch0; touch0 = null;
+    if (!s || !e.changedTouches.length) return;
+    var dx = e.changedTouches[0].clientX - s.x, dy = e.changedTouches[0].clientY - s.y;
+    if (Math.abs(dy) < 50 || Math.abs(dy) < Math.abs(dx) * 1.5 || Date.now() - s.t > 900) return;
+    var btn = document.querySelector(dy < 0 ? '[data-e2e="feed-navigation-next"]' : '[data-e2e="feed-navigation-prev"]');
+    if (!btn) return;
+    setTimeout(function () {
+      var v = mostVisibleVideo();
+      var moved = v !== s.v || (v && Math.abs(v.getBoundingClientRect().top - s.top) > 40);
+      if (!moved) { btn.click(); log('swipe → ' + (dy < 0 ? 'next' : 'prev') + ' button'); }
+    }, 350);
+  }, { passive: true, capture: true });
+
   // --- control API called from Swift ---------------------------------------
   function mostVisibleVideo() {
     var best = null, bestArea = 0;
@@ -273,6 +303,8 @@
     // Advance feed by one page (one video on the swipe feed). Best effort: honours
     // scroll-snap containers; falls back to window scroll. Returns what it scrolled.
     next: function () {
+      var btn = document.querySelector('[data-e2e="feed-navigation-next"]');
+      if (btn) { btn.click(); return 'button'; }
       var v = mostVisibleVideo();
       var c = scrollContainer(v);
       var h = c ? c.clientHeight : window.innerHeight;

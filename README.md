@@ -88,8 +88,9 @@ A single object instead of an array is accepted (pack of one).
   Without hard mode, Skip appears after 30 s.
 - `quietHours`: no interrupts between these times; counter resets instead.
 - `debug`: show the `count/interval` badge top-right (tap for packs, errors, Arm now). Default true.
-- `desktopSite`: load tiktok.com's desktop layout instead of mobile web. Fallback if the mobile
-  site keeps forcing you into the app. Takes effect on next launch.
+- `desktopSite`: load tiktok.com's desktop layout (default **true**). Mobile web caps you at about
+  two swipes and then redirects to the App Store. On the desktop layout a swipe that doesn't move
+  the feed presses TikTok's own next/previous button. Set false to try mobile web. Next launch.
 
 Tap the badge → **Copy log** to copy URL, packs, nag dismissals and blocked app hand-offs.
 
@@ -97,8 +98,10 @@ Tap the badge → **Copy log** to copy URL, packs, nag dismissals and blocked ap
 
 The interrupt is a *feed card*, not a modal. After video N is counted, the next swipe up
 drags the card in from the bottom exactly like the next video would. TikTok never sees that
-swipe. Once the unlock rule is met the card dims and shows "Swipe up to continue"; swiping it
-off the top scrolls the feed one video (`__tq.next()`, best effort) and resumes playback.
+swipe. Once the unlock rule is met the card shows "Swipe to continue"; swiping it
+away, up or down, scrolls the feed one video (`__tq.next()`) and resumes playback. Answering
+right, or a timer/read/web countdown ending, completes the card in place; there is no Continue
+button. The write-a-sentence prompt keeps its Done button.
 
 If the app is killed with a card pending, it comes back on relaunch already on screen.
 

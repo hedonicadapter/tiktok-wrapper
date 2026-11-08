@@ -3,5 +3,6 @@
   "hardMode": false,
   "packs": { "drivers-ed": 3, "stretch": 1, "blank-prompt": 1 },
   "quietHours": ["23:00", "07:00"],
-  "debug": true
+  "debug": true,
+  "desktopSite": true
 }

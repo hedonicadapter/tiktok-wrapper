@@ -23,8 +23,11 @@ struct WebInterruptView: View {
     var body: some View {
         VStack(spacing: 0) {
             PlainWebView(url: url, hideSelectors: hideSelectors)
-            UnlockButton(title: remaining > 0 ? "Unlocks in \(remaining)s" : "Done", enabled: remaining <= 0) {
-                onComplete(.done)
+            if remaining > 0 {
+                Text("Unlocks in \(remaining)s")
+                    .font(.footnote.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 8)
             }
         }
         .task {
@@ -32,6 +35,7 @@ struct WebInterruptView: View {
                 try? await Task.sleep(for: .seconds(1))
                 remaining -= 1
             }
+            onComplete(.done)
         }
     }
 }

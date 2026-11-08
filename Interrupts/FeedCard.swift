@@ -37,21 +37,22 @@ struct FeedCard: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
+                // After unlock: stays readable (explanation), but touches go to the card's swipe.
                 InterruptOverlay(scheduled: card, onComplete: onComplete)
                     .allowsHitTesting(!completed)
-                    .opacity(completed ? 0.35 : 1)
-                    .animation(.easeOut(duration: 0.25), value: completed)
             }
 
             if completed {
                 VStack(spacing: 6) {
                     Image(systemName: "chevron.up")
-                        .font(.title2.weight(.semibold))
-                    Text("Swipe up to continue")
-                        .font(.footnote)
+                        .font(.title3.weight(.semibold))
+                    Text("Swipe to continue")
+                        .font(.footnote.weight(.medium))
                 }
                 .foregroundStyle(.secondary)
-                .padding(.bottom, 40)
+                .padding(.horizontal, 16).padding(.vertical, 10)
+                .background(.ultraThinMaterial, in: Capsule())
+                .padding(.bottom, 36)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }

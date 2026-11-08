@@ -61,8 +61,8 @@ struct FeedView: View {
         case .hidden: return h
         case .armed: return max(0, h + model.dragOffset)          // dragging up from below
         case .shown: return 0
-        case .completed: return min(0, model.dragOffset)          // dragging up and away
-        case .dismissing: return -h
+        case .completed: return model.dragOffset                  // follows the finger either way
+        case .dismissing: return model.dismissUp ? -h : h
         }
     }
 
@@ -80,18 +80,20 @@ struct FeedView: View {
             }
     }
 
-    /// After unlock, swipe up dismisses the card and the feed continues.
+    /// After unlock, a swipe up or down dismisses the card and the feed continues.
     private func dismissDrag(height h: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 8, coordinateSpace: .global)
             .onChanged { v in
                 guard isCompleted else { return }
-                model.dragOffset = min(0, v.translation.height)
+                model.dragOffset = v.translation.height
             }
             .onEnded { v in
                 guard isCompleted else { return }
-                let commit = -v.translation.height > h * 0.2 || -v.predictedEndTranslation.height > h * 0.5
+                let dy = v.translation.height, flick = v.predictedEndTranslation.height
+                let commit = abs(dy) > h * 0.2 || abs(flick) > h * 0.5
+                let up = (abs(flick) > abs(dy) ? flick : dy) < 0
                 withAnimation(.spring(duration: 0.35, bounce: 0)) {
-                    if commit { model.dismissCard() } else { model.dragOffset = 0 }
+                    if commit { model.dismissCard(up: up) } else { model.dragOffset = 0 }
                 }
             }
     }
@@ -148,7 +150,7 @@ struct TikTokWebView: UIViewRepresentable {
         // to the real device UA, giving exactly what Mobile Safari sends.
         cfg.applicationNameForUserAgent = "Version/17.0 Mobile/15E148 Safari/604.1"
         cfg.preferences.javaScriptCanOpenWindowsAutomatically = true
-        if model.scheduler.config.desktopSite == true {
+        if model.scheduler.config.useDesktopSite {
             cfg.defaultWebpagePreferences.preferredContentMode = .desktop
         }
         cfg.userContentController.add(model.bridge, name: Bridge.handlerName)
@@ -203,7 +205,13 @@ struct TikTokWebView: UIViewRepresentable {
             let scheme = (url.scheme ?? "").lowercased()
             if !["http", "https", "about", "blob", "data", "file"].contains(scheme) { return true }
             let host = (url.host ?? "").lowercased()
-            return host == "apps.apple.com" || host == "itunes.apple.com" || host.hasSuffix(".onelink.me")
+            if host == "apps.apple.com" || host == "itunes.apple.com" || host.hasSuffix(".onelink.me") { return true }
+            // Mobile web's swipe cap navigates here before bouncing to the App Store.
+            if host.hasSuffix("tiktok.com") {
+                let path = url.path.lowercased()
+                return path == "/redirect" || path.hasPrefix("/download-link") || path == "/download"
+            }
+            return false
         }
 
         // MARK: Navigation / health

@@ -18,6 +18,7 @@ final class AppModel: ObservableObject {
     @Published var card: ScheduledInterrupt?
     @Published var phase: CardPhase = .hidden
     @Published var dragOffset: CGFloat = 0      // live finger translation while dragging card
+    @Published var dismissUp = true             // direction the card leaves in
     @Published var popup: PopupWindow?          // window.open target (OAuth sign-in)
     @Published var lastLog: String = ""
     @Published var currentURL: String = ""
@@ -132,9 +133,10 @@ final class AppModel: ObservableObject {
         phase = .completed(result)
     }
 
-    /// Card swiped off the top. Feed advances one video and resumes.
-    func dismissCard() {
+    /// Card swiped away (either direction). Feed advances one video and resumes.
+    func dismissCard(up: Bool = true) {
         guard case .completed = phase else { return }
+        dismissUp = up
         phase = .dismissing
         counter.reset()
         applyScrollLock(unlock: true)
@@ -172,7 +174,7 @@ final class AppModel: ObservableObject {
     var debugReport: String {
         var lines = ["ScrollGate \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")",
                      "url: \(currentURL)",
-                     "count: \(counter.count)/\(scheduler.config.interval)  desktopSite: \(scheduler.config.desktopSite ?? false)",
+                     "count: \(counter.count)/\(scheduler.config.interval)  desktopSite: \(scheduler.config.useDesktopSite)",
                      "packs: \(store.packs.map(\.id).joined(separator: ", "))"]
         lines += store.errors.map { "pack error: \($0)" }
         if let e = scheduler.configError { lines.append("config error: \(e)") }

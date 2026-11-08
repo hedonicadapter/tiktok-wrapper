@@ -29,8 +29,11 @@ struct ReadView: View {
                 }
                 .padding()
             }
-            UnlockButton(title: remaining > 0 ? "Keep reading… \(remaining)s" : "Done", enabled: remaining <= 0) {
-                onComplete(.done)
+            if remaining > 0 {
+                Text("Keep reading… \(remaining)s")
+                    .font(.footnote.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .padding(.bottom, 12)
             }
         }
         .task {
@@ -38,6 +41,7 @@ struct ReadView: View {
                 try? await Task.sleep(for: .seconds(1))
                 remaining -= 1
             }
+            onComplete(.done)
         }
     }
 }

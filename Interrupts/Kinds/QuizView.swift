@@ -60,18 +60,11 @@ struct QuizView: View {
                 .padding()
             }
 
-            if locked {
-                if pickedCorrect {
-                    UnlockButton(title: "Continue", enabled: true) {
-                        onComplete(wrongCount == 0 ? .correct : .wrong)
-                    }
-                } else if unlock == .anyAnswer {
-                    UnlockButton(title: "Continue", enabled: true) { onComplete(.wrong) }
-                } else {
-                    UnlockButton(title: "Try again", enabled: true) {
-                        picked = nil
-                        locked = false
-                    }
+            // Correct (or any answer when allowed) completes in place; the card's swipe continues.
+            if locked && !pickedCorrect && unlock != .anyAnswer {
+                UnlockButton(title: "Try again", enabled: true) {
+                    picked = nil
+                    locked = false
                 }
             }
         }
@@ -81,6 +74,8 @@ struct QuizView: View {
         picked = i
         locked = true
         if i != correct { wrongCount += 1 }
+        if i == correct { onComplete(wrongCount == 0 ? .correct : .wrong) }
+        else if unlock == .anyAnswer { onComplete(.wrong) }
     }
 
     @ViewBuilder
