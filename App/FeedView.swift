@@ -13,6 +13,20 @@ struct FeedView: View {
                 TikTokWebView(model: model)
                     .ignoresSafeArea()
 
+                // Off the feed (profile, video page, settings): native way back.
+                if !model.isOnFeed && model.phase == .hidden {
+                    Button { model.goBackOrFeed() } label: {
+                        Label("Back", systemImage: "chevron.left")
+                            .font(.footnote.weight(.semibold))
+                            .padding(.horizontal, 12).padding(.vertical, 7)
+                            .background(.ultraThinMaterial, in: Capsule())
+                    }
+                    .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 52)
+                    .zIndex(1.5)
+                }
+
                 // Armed: invisible shield catches the next swipe so TikTok never sees it.
                 if model.phase == .armed {
                     Color.clear
@@ -161,8 +175,15 @@ struct TikTokWebView: UIViewRepresentable {
         cfg.userContentController.add(model.bridge, name: Bridge.handlerName)
         cfg.userContentController.addUserScript(model.makeUserScript())
 
-        let web = WKWebView(frame: .zero, configuration: cfg)
-        if desktop { web.customUserAgent = AppModel.desktopUserAgent }
+        let web = ZoomingWebView(frame: .zero, configuration: cfg)
+        if desktop {
+            web.customUserAgent = AppModel.desktopUserAgent
+            web.layoutWidth = CGFloat(model.scheduler.config.desktopLayoutWidth)
+        }
+        // SPA route changes (pushState) don't fire navigation callbacks; watch the URL itself.
+        context.coordinator.urlObservation = web.observe(\.url, options: [.new]) { [model] w, _ in
+            Task { @MainActor in model.currentURL = w.url?.absoluteString ?? "" }
+        }
         model.note(desktop ? "site: desktop (Mac Safari UA)" : "site: mobile")
         web.uiDelegate = context.coordinator
         web.navigationDelegate = context.coordinator
@@ -190,6 +211,7 @@ struct TikTokWebView: UIViewRepresentable {
     /// and page-health events (process crash, dead pages).
     final class Coordinator: NSObject, WKUIDelegate, WKNavigationDelegate {
         let model: AppModel
+        var urlObservation: NSKeyValueObservation?
         init(model: AppModel) { self.model = model }
 
         // MARK: Navigation policy
@@ -217,11 +239,14 @@ struct TikTokWebView: UIViewRepresentable {
             if !["http", "https", "about", "blob", "data", "file"].contains(scheme) { return true }
             let host = (url.host ?? "").lowercased()
             if host == "apps.apple.com" || host == "itunes.apple.com" || host.hasSuffix(".onelink.me") { return true }
-            // Mobile web's swipe cap navigates here before bouncing to the App Store.
             if host.hasSuffix("tiktok.com") {
                 let path = url.path.lowercased()
-                return path == "/redirect" || path.hasPrefix("/download-link") || path == "/download"
+                // Mobile web's swipe cap navigates here before bouncing to the App Store.
+                if path == "/redirect" || path.hasPrefix("/download-link") || path == "/download" { return true }
+                // TikTok Studio/upload: rejects this browser and has no way back to the feed.
+                if path.hasPrefix("/tiktokstudio") || path.hasPrefix("/creator") || path.hasPrefix("/upload") { return true }
             }
+            if host.hasPrefix("studio.") || host.hasPrefix("creator.") { return true }
             return false
         }
 
@@ -272,6 +297,19 @@ struct TikTokWebView: UIViewRepresentable {
         func webViewDidClose(_ webView: WKWebView) {
             if model.popup?.webView === webView { model.popup = nil }
         }
+    }
+}
+
+/// Lays the page out at `layoutWidth` CSS px and zooms it to fit the view, like a desktop
+/// browser window shrunk onto the phone. 0 = no zoom.
+final class ZoomingWebView: WKWebView {
+    var layoutWidth: CGFloat = 0 { didSet { setNeedsLayout() } }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard layoutWidth > 0, bounds.width > 0 else { return }
+        let zoom = min(1, bounds.width / layoutWidth)
+        if abs(pageZoom - zoom) > 0.005 { pageZoom = zoom }
     }
 }
 

@@ -150,6 +150,17 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Pages where TikTok's own UI is the whole experience; anywhere else gets a native back button.
+    var isOnFeed: Bool {
+        guard let path = URL(string: currentURL)?.path.lowercased() else { return true }
+        return ["", "/", "/foryou", "/following", "/friends", "/explore", "/live"].contains(path)
+    }
+
+    func goBackOrFeed() {
+        guard let web = webView else { return }
+        if web.canGoBack { web.goBack() } else { web.load(URLRequest(url: AppModel.feedURL)) }
+    }
+
     /// Debug/manual trigger: arm immediately.
     func fireNow() {
         guard phase == .hidden, let next = scheduler.nextInterrupt() else { return }
