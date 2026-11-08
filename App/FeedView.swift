@@ -10,8 +10,9 @@ struct FeedView: View {
         GeometryReader { geo in
             let h = geo.size.height
             ZStack(alignment: .topTrailing) {
+                // Inside the safe area: the page's viewport is exactly what's visible (no content
+                // insets pushing it under the status bar or off the bottom).
                 TikTokWebView(model: model)
-                    .ignoresSafeArea()
 
                 // Off the feed (profile, video page, settings): native way back.
                 if !model.isOnFeed && model.phase == .hidden {
@@ -191,12 +192,14 @@ struct TikTokWebView: UIViewRepresentable {
         web.isOpaque = false
         web.backgroundColor = .black
         web.scrollView.backgroundColor = .black
-        // Like Safari: page is inset below the status bar, so TikTok's header stays tappable.
-        web.scrollView.contentInsetAdjustmentBehavior = .always
+        // Frame already excludes status bar/home indicator; insets would shift the page down
+        // while 100vh stays full height, cutting off the bottom.
+        web.scrollView.contentInsetAdjustmentBehavior = .never
         if #available(iOS 16.4, *) {
             web.isInspectable = true
         }
-        web.load(URLRequest(url: URL(string: "https://www.tiktok.com")!))
+        // Desktop: first load waits for the zoom, else TikTok sizes the layout for the unzoomed width.
+        web.loadWhenZoomed(URLRequest(url: URL(string: "https://www.tiktok.com")!))
         model.attach(web)
         return web
     }
@@ -304,12 +307,18 @@ struct TikTokWebView: UIViewRepresentable {
 /// browser window shrunk onto the phone. 0 = no zoom.
 final class ZoomingWebView: WKWebView {
     var layoutWidth: CGFloat = 0 { didSet { setNeedsLayout() } }
+    private var pendingLoad: URLRequest?
+
+    func loadWhenZoomed(_ request: URLRequest) {
+        if layoutWidth > 0 && bounds.width == 0 { pendingLoad = request } else { load(request) }
+    }
 
     override func layoutSubviews() {
         super.layoutSubviews()
         guard layoutWidth > 0, bounds.width > 0 else { return }
         let zoom = min(1, bounds.width / layoutWidth)
         if abs(pageZoom - zoom) > 0.005 { pageZoom = zoom }
+        if let r = pendingLoad { pendingLoad = nil; load(r) }
     }
 }
 

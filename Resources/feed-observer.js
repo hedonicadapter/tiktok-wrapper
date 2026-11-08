@@ -33,8 +33,9 @@
   // cover the screen like the app, landscape ones letterbox. Only applies when the desktop
   // feed is detected (html.tq-desktop), keyed on data-e2e hooks, not hashed class names.
   var DESKTOP_CSS = [
-    'html.tq-desktop, html.tq-desktop body { background: #000 !important; }',
+    'html.tq-desktop, html.tq-desktop body { background: #000 !important; overflow-x: hidden !important; }',
     '.tq-desktop [data-e2e="anchoring-player-column"] { flex: 1 1 auto !important; width: auto !important; max-width: none !important; margin: 0 !important; padding: 0 !important; }',
+    '.tq-desktop [data-e2e="anchoring-player-column"] > * { width: 100% !important; max-width: none !important; }',
     '.tq-desktop [data-e2e="recommend-list-item-container"] { width: 100% !important; max-width: none !important; padding: 0 !important; margin: 0 !important; justify-content: stretch !important; }',
     '.tq-desktop [data-e2e="recommend-list-item-container"] > * { width: 100% !important; max-width: none !important; }',
     '.tq-desktop [data-e2e="feed-video"] { width: 100% !important; max-width: none !important; height: 100% !important; aspect-ratio: auto !important; border-radius: 0 !important; background: #000 !important; }',
@@ -56,12 +57,18 @@
       log('desktop layout fixes on');
     }
     if (!isDesktop) return;
-    // Portrait videos fill the screen (like the app); wide ones keep black bars.
+    // Fill the screen like the app only when that crops little; otherwise letterbox so
+    // burnt-in captions stay whole (beside the rail the space is much narrower than 9:16).
     document.querySelectorAll('[data-e2e="feed-video"] video').forEach(function (v) {
       if (!v.videoWidth) return;
-      var fit = v.videoWidth / v.videoHeight < 0.8 ? 'cover' : 'contain';
+      var box = v.parentElement.getBoundingClientRect();
+      if (!box.width || !box.height) return;
+      var va = v.videoWidth / v.videoHeight, ba = box.width / box.height;
+      var crop = 1 - Math.min(va, ba) / Math.max(va, ba);
+      var fit = crop <= 0.12 ? 'cover' : 'contain';
       if (v.getAttribute('data-tq-fit') !== fit) v.setAttribute('data-tq-fit', fit);
     });
+    idleResnap();
   }
 
   // After the column resizes (comments panel opened/closed, rotation) the snap list can be
@@ -77,6 +84,22 @@
     });
     if (item && best > 4) { item.scrollIntoView({ block: 'start' }); log('re-snapped feed (' + Math.round(best) + 'px off)'); }
   }
+  // Also catch misalignment without a resize (e.g. comments closed): when the list has been
+  // still for a moment and sits between items, re-align.
+  var lastTouchEnd = 0, lastListTop = null;
+  function idleResnap() {
+    if (touching || Date.now() - lastTouchEnd < 1200) return;
+    var a = document.querySelector('[data-e2e="recommend-list-item-container"]');
+    var list = a && a.parentElement; if (!list) return;
+    var st = list.scrollTop;
+    var still = lastListTop === st; lastListTop = st;
+    if (!still) return;
+    var off = Infinity;
+    list.querySelectorAll('[data-e2e="recommend-list-item-container"]').forEach(function (it) {
+      off = Math.min(off, Math.abs(it.getBoundingClientRect().top - list.getBoundingClientRect().top));
+    });
+    if (off > 12 && off !== Infinity) resnap();
+  }
   var ro = ('ResizeObserver' in window) ? new ResizeObserver(function () {
     clearTimeout(resnapTimer); resnapTimer = setTimeout(resnap, 300);
   }) : null;
@@ -86,6 +109,7 @@
   }
   document.addEventListener('touchstart', function () { touching = true; }, { passive: true, capture: true });
   document.addEventListener('touchend', function () {
+    lastTouchEnd = Date.now();
     setTimeout(function () { touching = false; }, 400);
   }, { passive: true, capture: true });
 
@@ -378,7 +402,15 @@
     // Debug: log every layer under the screen centre and what the page thinks it is.
     inspect: function () {
       var x = innerWidth / 2, y = innerHeight / 2;
-      log('ua ' + navigator.userAgent.slice(0, 100) + ' | ' + navigator.platform + ' | ' + innerWidth + 'x' + innerHeight);
+      log('ua ' + navigator.userAgent.slice(0, 100) + ' | ' + navigator.platform + ' | ' + innerWidth + 'x' + innerHeight +
+          ' vv ' + (window.visualViewport ? Math.round(visualViewport.width) + 'x' + Math.round(visualViewport.height) + '@' + visualViewport.scale.toFixed(2) : '-') + ' dpr ' + devicePixelRatio);
+      ['anchoring-player-column', 'recommend-list-item-container', 'feed-video', 'anchoring-engagement-vertical', 'anchoring-description-layer'].forEach(function (k) {
+        var e = document.querySelector('[data-e2e="' + k + '"]'); if (!e) return log('geo ' + k + ' missing');
+        var r = e.getBoundingClientRect();
+        log('geo ' + k + ' ' + Math.round(r.left) + '..' + Math.round(r.right) + ' x ' + Math.round(r.top) + '..' + Math.round(r.bottom));
+      });
+      var vv = document.querySelector('[data-e2e="feed-video"] video');
+      if (vv) log('geo video ' + vv.videoWidth + 'x' + vv.videoHeight + ' fit=' + getComputedStyle(vv).objectFit);
       var els = document.elementsFromPoint(x, y).slice(0, 10);
       els.forEach(function (e, i) {
         var cs = getComputedStyle(e);
