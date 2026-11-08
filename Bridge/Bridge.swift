@@ -35,6 +35,15 @@ final class Bridge: NSObject, WKScriptMessageHandler {
         return WKUserScript(source: source, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
     }
 
+    /// Desktop mode: pin the layout viewport so TikTok's desktop layout (needs ~490 CSS px) fits;
+    /// WebKit scales it to the screen. Must run at document start, before TikTok's own meta applies.
+    static func makeViewportScript(layoutWidth: Int) -> WKUserScript? {
+        guard let url = Bundle.main.url(forResource: "viewport", withExtension: "js"),
+              let js = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+        let source = js.replacingOccurrences(of: "__LAYOUT_WIDTH__", with: String(layoutWidth))
+        return WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: true)
+    }
+
     private static func jsonArray(_ list: [String]) -> String {
         guard let data = try? JSONEncoder().encode(list), let s = String(data: data, encoding: .utf8) else { return "[]" }
         return s

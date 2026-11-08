@@ -175,11 +175,15 @@ struct TikTokWebView: UIViewRepresentable {
         cfg.preferences.javaScriptCanOpenWindowsAutomatically = true
         cfg.userContentController.add(model.bridge, name: Bridge.handlerName)
         cfg.userContentController.addUserScript(model.makeUserScript())
+        if desktop, let vp = Bridge.makeViewportScript(layoutWidth: Int(model.scheduler.config.desktopLayoutWidth)) {
+            cfg.userContentController.addUserScript(vp)
+        }
 
         let web = ZoomingWebView(frame: .zero, configuration: cfg)
         if desktop {
+            // Fit is done by viewport.js (layout width pinned, WebKit scales to the screen).
+            // pageZoom is not used: WebKit cancels it out against TikTok's width=device-width.
             web.customUserAgent = AppModel.desktopUserAgent
-            web.layoutWidth = CGFloat(model.scheduler.config.desktopLayoutWidth)
         }
         // SPA route changes (pushState) don't fire navigation callbacks; watch the URL itself.
         context.coordinator.urlObservation = web.observe(\.url, options: [.new]) { [model] w, _ in

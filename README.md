@@ -92,7 +92,7 @@ A single object instead of an array is accepted (pack of one).
 - `desktopSite`: load tiktok.com's desktop layout (default **true**). Mobile web caps you at about
   two swipes and then redirects to the App Store. On the desktop layout a swipe that doesn't move
   the feed presses TikTok's own next/previous button. Set false to try mobile web. Next launch.
-- `desktopWidth`: CSS width the desktop layout gets before being zoomed to fit (default 560,
+- `desktopWidth`: CSS width the desktop layout is pinned to before WebKit scales it to fit (default 560,
   min 480). Lower = bigger text; below ~500 TikTok's right-hand buttons fall off-screen.
 
 Off the feed (profiles, single videos) a native **Back** pill appears at the top. TikTok Studio

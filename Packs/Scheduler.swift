@@ -10,7 +10,7 @@ struct SchedulerConfig: Codable, Equatable {
     var desktopSite: Bool? = nil           // tiktok.com desktop layout (default true: mobile web caps swipes and redirects to the app)
 
     var useDesktopSite: Bool { desktopSite ?? true }
-    var desktopWidth: Double? = nil        // CSS px the desktop layout gets; page is zoomed to fit the screen
+    var desktopWidth: Double? = nil        // CSS px the desktop layout gets; page is scaled to fit the screen
 
     /// Desktop TikTok overflows below ~500 CSS px (right action bar off-screen); 560 fits with margin.
     var desktopLayoutWidth: Double { max(480, desktopWidth ?? 560) }
