@@ -346,9 +346,23 @@
     }
     return false;
   }
+  // Comments live in their own panel (desktop: a column or drawer). Any visible one disables the shim.
+  var COMMENT_SEL = '[data-e2e*="comment-list"],[data-e2e*="comment-panel"],[class*="CommentList"],[class*="CommentContainer"],[class*="DivCommentMain"]';
+  function commentsOpen() {
+    var els = document.querySelectorAll(COMMENT_SEL);
+    for (var i = 0; i < els.length; i++) if (isVisible(els[i])) return true;
+    return false;
+  }
+  // Only swipes that start on the video item count; never inside comments or scrollable panels.
+  function shimTarget(t) {
+    if (!t || !t.closest) return false;
+    if (!t.closest('[data-e2e="recommend-list-item-container"],[data-e2e="feed-video"]')) return false;
+    if (t.closest('[data-e2e*="comment"],[class*="Comment"],[class*="comment"]')) return false;
+    return !inScrollable(t) && !commentsOpen();
+  }
   var touch0 = null;
   document.addEventListener('touchstart', function (e) {
-    if (e.touches.length !== 1 || inScrollable(e.target)) { touch0 = null; return; }
+    if (e.touches.length !== 1 || !shimTarget(e.target)) { touch0 = null; return; }
     var v = mostVisibleVideo();
     touch0 = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now(), v: v, top: v ? v.getBoundingClientRect().top : 0 };
   }, { passive: true, capture: true });
@@ -357,6 +371,7 @@
     if (!s || !e.changedTouches.length) return;
     var dx = e.changedTouches[0].clientX - s.x, dy = e.changedTouches[0].clientY - s.y;
     if (Math.abs(dy) < 50 || Math.abs(dy) < Math.abs(dx) * 1.5 || Date.now() - s.t > 900) return;
+    if (commentsOpen()) return;
     var btn = document.querySelector(dy < 0 ? '[data-e2e="feed-navigation-next"]' : '[data-e2e="feed-navigation-prev"]');
     if (!btn) return;
     setTimeout(function () {
