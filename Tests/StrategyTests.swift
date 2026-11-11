@@ -253,3 +253,54 @@ final class MasteryTests: XCTestCase {
         XCTAssertNotEqual(m.pick(itemIds: ids, progress: p), 0)
     }
 }
+
+final class MasteryMixingTests: XCTestCase {
+    private let ids = ["a", "b", "c", "d", "e", "f"]
+
+    func testWrongBeatsEverything() {
+        let m = MasteryStrategy(random: { _ in 0 })
+        var p = PackProgress(); p.served = 10
+        p.items["c"] = ItemStats(shown: 1, correct: 0, wrong: 1, correctStreak: 0, dueTurn: 9)
+        p.items["b"] = ItemStats(shown: 2, correct: 2, wrong: 0, correctStreak: 1, dueTurn: 5)
+        XCTAssertEqual(m.pick(itemIds: ids, progress: p), 2, "overdue wrong item first")
+    }
+
+    func testReviewsAlternateWithNewItems() {
+        let m = MasteryStrategy(random: { _ in 0 })
+        var p = PackProgress()
+        for id in ["a", "b", "c"] { p.items[id] = ItemStats(shown: 2, correct: 2, wrong: 0, correctStreak: 1, dueTurn: 0) }
+        p.served = 4   // even turn → new item
+        XCTAssertEqual(m.pick(itemIds: ids, progress: p), 3, "even turn: unseen")
+        p.served = 5   // odd turn → due review
+        XCTAssertEqual(m.pick(itemIds: ids, progress: p), 0, "odd turn: review")
+    }
+
+    func testLegacyProgressWithoutDueTurnStillServed() {
+        let m = MasteryStrategy(random: { _ in 0 })
+        var p = PackProgress(); p.served = 1
+        for id in ids { p.items[id] = ItemStats(shown: 1, correct: 1, wrong: 0, correctStreak: 1) }
+        XCTAssertNotNil(m.pick(itemIds: ids, progress: p))
+    }
+
+    func testOnlyLastItemLeftIsStillShown() {
+        let m = MasteryStrategy(random: { _ in 0 })
+        var p = PackProgress(); p.served = 3; p.lastItemId = "a"
+        for id in ids { var s = ItemStats(); s.shown = 3; s.retired = (id != "a"); p.items[id] = s }
+        p.items["a"]?.dueTurn = 10
+        XCTAssertEqual(m.pick(itemIds: ids, progress: p), 0)
+    }
+}
+
+final class PackWeightTests: XCTestCase {
+    func testUnlistedPacksDefaultToWeightOne() throws {
+        let docs = FileManager.default.temporaryDirectory.appendingPathComponent("tq-w-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: docs, withIntermediateDirectories: true)
+        try #"{"interval":5,"hardMode":false,"packs":{"drivers-ed":3,"stretch":0}}"#
+            .write(to: docs.appendingPathComponent("config.json"), atomically: true, encoding: .utf8)
+        let s = Scheduler(store: PackStore(documents: docs), defaults: UserDefaults(suiteName: "tq.test.\(UUID().uuidString)")!)
+        s.reloadConfig()
+        XCTAssertEqual(s.weight(for: "drivers-ed"), 3)
+        XCTAssertEqual(s.weight(for: "stretch"), 0)
+        XCTAssertEqual(s.weight(for: "korkort-emil"), 1)
+    }
+}

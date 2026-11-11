@@ -83,8 +83,8 @@ A single object instead of an array is accepted (pack of one).
 }
 ```
 
-- `packs`: weight per pack id. 0 parks it. Packs missing from the map get 0 (if the map is
-  empty, every loaded pack gets 1).
+- `packs`: weight per pack id. 0 parks it. Packs not listed get weight 1, so a pack dropped into
+  Files fires without editing config. The badge panel shows each pack's effective weight (`w3`).
 - `hardMode`: forces `unlock: correct` on quiz/flashcard packs and removes the Skip button.
   Without hard mode, Skip appears after 30 s.
 - `quietHours`: no interrupts between these times; counter resets instead.
@@ -122,7 +122,8 @@ Counted in that pack's own interrupts:
 - **Right** → comes back after 4, then 12, then 36 questions.
 - **Right on first sight** → treated as known: one more right answer later retires it.
 - **`masteryStreak` right in a row** (default 3) → retired, never shown again.
-- Overdue questions come first, then unseen ones, then whichever is due soonest. A pack with
+- Overdue *wrong* questions come first. Other due reviews alternate turn by turn with unseen
+  questions, so new ones keep coming. Never the same question twice in a row. A pack with
   everything retired steps aside for the other packs. The badge panel shows `retired/total`.
 
 ## Unlock rules

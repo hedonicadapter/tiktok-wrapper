@@ -28,12 +28,8 @@ struct FeedView: View {
                     .zIndex(1.5)
                 }
 
-                // Armed: invisible shield catches the next swipe so TikTok never sees it.
-                if model.phase == .armed {
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .gesture(armedDrag(height: h))
-                }
+                // Armed: the swipe that brings the card in is caught by ArmedPan on the web view
+                // itself, so taps (like, comments, profile) still reach TikTok.
 
                 // The card. Lives in the same ZStack, slides vertically like a feed item.
                 if let card = model.card, model.phase != .hidden {
@@ -60,7 +56,7 @@ struct FeedView: View {
             PopupWebView(popup: popup) { model.popup = nil }
         }
         .onChange(of: scenePhase) { _, p in
-            if p == .active { model.reload() }
+            if p == .active { model.reload(); model.didBecomeActive() }
             if model.phase != .hidden && model.phase != .armed { model.pauseFeed() }
         }
     }
@@ -80,27 +76,6 @@ struct FeedView: View {
         case .completed: return model.dragOffset                  // follows the finger either way
         case .dismissing: return model.dismissUp ? -h : h
         }
-    }
-
-    /// Swipe up while armed drags the card in. Commit past 20% or on a flick.
-    private func armedDrag(height h: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 8, coordinateSpace: .global)
-            .onChanged { v in
-                model.dragOffset = min(0, v.translation.height)
-            }
-            .onEnded { v in
-                let dy = v.translation.height, flick = v.predictedEndTranslation.height
-                // Swipe down while armed: previous video (web view scrolling is locked).
-                if dy > 60 && abs(dy) > abs(v.translation.width) {
-                    model.dragOffset = 0
-                    model.previousVideo()
-                    return
-                }
-                let commit = -dy > h * 0.2 || -flick > h * 0.5
-                withAnimation(.spring(duration: 0.35, bounce: 0)) {
-                    if commit { model.showCard() } else { model.dragOffset = 0 }
-                }
-            }
     }
 
     /// Unanswered card: a clear downward swipe returns to the video (card stays queued).
@@ -232,6 +207,10 @@ struct TikTokWebView: UIViewRepresentable {
         // Desktop: first load waits for the zoom, else TikTok sizes the layout for the unzoomed width.
         web.loadWhenZoomed(URLRequest(url: URL(string: "https://www.tiktok.com")!))
         model.attach(web)
+        let pan = ArmedPan(model: model)
+        web.addGestureRecognizer(pan.pan)
+        model.armedPan = pan
+        pan.setEnabled(model.phase == .armed)
         return web
     }
 
@@ -350,6 +329,63 @@ final class ZoomingWebView: WKWebView {
         let zoom = min(1, bounds.width / layoutWidth)
         if abs(pageZoom - zoom) > 0.005 { pageZoom = zoom }
         if let r = pendingLoad { pendingLoad = nil; load(r) }
+    }
+}
+
+/// While a card is armed: a vertical pan on the web view drags the card in (up) or goes to the
+/// previous video (down). Web view pans (feed scrolling) must wait for it to fail, so the feed
+/// doesn't move; taps aren't pans, so buttons keep working.
+@MainActor
+final class ArmedPan: NSObject, UIGestureRecognizerDelegate {
+    let pan = UIPanGestureRecognizer()
+    private weak var model: AppModel?
+
+    init(model: AppModel) {
+        self.model = model
+        super.init()
+        pan.addTarget(self, action: #selector(handle(_:)))
+        pan.delegate = self
+        pan.isEnabled = false
+    }
+
+    func setEnabled(_ on: Bool) { if pan.isEnabled != on { pan.isEnabled = on } }
+
+    @objc private func handle(_ g: UIPanGestureRecognizer) {
+        guard let model, let v = g.view else { return }
+        let t = g.translation(in: v), vel = g.velocity(in: v), h = max(1, v.bounds.height)
+        switch g.state {
+        case .changed:
+            model.dragOffset = min(0, t.y)
+        case .ended, .cancelled, .failed:
+            if t.y > 60 && t.y > abs(t.x) {
+                model.dragOffset = 0
+                model.previousVideo()
+                return
+            }
+            let commit = -t.y > h * 0.2 || -vel.y > 900
+            withAnimation(.spring(duration: 0.35, bounce: 0)) {
+                if commit { model.showCard() } else { model.dragOffset = 0 }
+            }
+        default:
+            break
+        }
+    }
+
+    // Vertical only; horizontal pans (back gesture, carousels) are left alone.
+    func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
+        guard let p = g as? UIPanGestureRecognizer, let v = p.view else { return false }
+        let vel = p.velocity(in: v)
+        return abs(vel.y) > abs(vel.x)
+    }
+
+    // The web view's own pans (feed scroll) wait for this one to fail.
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldBeRequiredToFailBy other: UIGestureRecognizer) -> Bool {
+        other is UIPanGestureRecognizer && other !== pan
+    }
+
+    // Taps, long presses etc. run alongside.
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+        !(other is UIPanGestureRecognizer)
     }
 }
 

@@ -2,6 +2,7 @@ import Foundation
 import Combine
 import WebKit
 import UIKit
+import AVFoundation
 
 /// Lifecycle of the feed card (the interrupt presented as if it were the next video).
 enum CardPhase: Equatable {
@@ -16,7 +17,7 @@ enum CardPhase: Equatable {
 @MainActor
 final class AppModel: ObservableObject {
     @Published var card: ScheduledInterrupt?
-    @Published var phase: CardPhase = .hidden
+    @Published var phase: CardPhase = .hidden { didSet { armedPan?.setEnabled(phase == .armed) } }
     @Published var dragOffset: CGFloat = 0      // live finger translation while dragging card
     @Published var dismissUp = true             // direction the card leaves in
     @Published var popup: PopupWindow?          // window.open target (OAuth sign-in)
@@ -30,6 +31,7 @@ final class AppModel: ObservableObject {
     let bridge = Bridge()
 
     weak var webView: WKWebView?
+    var armedPan: ArmedPan?             // catches the swipe that brings the card in; taps pass through
     private let defaults: UserDefaults
     private let pendingKey = "tq.pending"
     private var cancellables = Set<AnyCancellable>()
@@ -42,6 +44,7 @@ final class AppModel: ObservableObject {
 
         store.installStartersIfNeeded()
         reload()
+        activateAudio()
 
         // Forward nested changes so views observing AppModel refresh.
         for child in [store.objectWillChange.eraseToAnyPublisher(),
@@ -177,6 +180,22 @@ final class AppModel: ObservableObject {
         arm(next)
     }
 
+    // MARK: Audio
+
+    /// Video app, not game: play through the silent switch like TikTok, and reclaim the session
+    /// after backgrounding (otherwise video resumes silent).
+    func activateAudio() {
+        let s = AVAudioSession.sharedInstance()
+        try? s.setCategory(.playback, mode: .moviePlayback, options: [])
+        try? s.setActive(true)
+    }
+
+    /// App back in the foreground with no card up: audio session back on, visible video playing.
+    func didBecomeActive() {
+        activateAudio()
+        if phase == .hidden || phase == .armed { resumeFeed() }
+    }
+
     // MARK: Page health
 
     static let feedURL = URL(string: "https://www.tiktok.com/foryou")!
@@ -197,7 +216,9 @@ final class AppModel: ObservableObject {
     var packSummary: String {
         store.packs.map { p in
             let r = p.retiredCount(progress: scheduler.loadProgress(packId: p.id))
-            return r > 0 ? "\(p.id) \(r)/\(p.itemCount) retired" : "\(p.id) (\(p.itemCount))"
+            let w = scheduler.weight(for: p.id)
+            let wTxt = w == w.rounded() ? String(Int(w)) : String(w)
+            return "\(p.id) w\(wTxt) " + (r > 0 ? "\(r)/\(p.itemCount) retired" : "(\(p.itemCount))")
         }.joined(separator: ", ")
     }
 

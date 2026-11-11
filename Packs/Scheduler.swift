@@ -4,7 +4,7 @@ import Foundation
 struct SchedulerConfig: Codable, Equatable {
     var interval: Int = 5
     var hardMode: Bool = false
-    var packs: [String: Double] = [:]      // pack id -> weight; 0 parks it
+    var packs: [String: Double] = [:]      // pack id -> weight; 0 parks it; packs not listed get 1
     var quietHours: [String]? = nil        // ["23:00", "07:00"]
     var debug: Bool? = nil                 // show counter badge + debug panel (default true)
     var desktopSite: Bool? = nil           // tiktok.com desktop layout (default true: mobile web caps swipes and redirects to the app)
@@ -73,13 +73,13 @@ final class Scheduler: ObservableObject {
 
     // MARK: Picking
 
-    /// Weighted pick among loaded packs with weight > 0. Packs missing from config get weight 0
-    /// unless config has no packs section at all, then every loaded pack gets weight 1.
+    /// Weighted pick among loaded packs with weight > 0. Packs not listed in config get weight 1,
+    /// so a pack dropped into Files fires without editing config.json; list it with 0 to park it.
     func pickPack(excluding: Set<String> = []) -> LoadedPack? {
         let available = store.packs.filter { !excluding.contains($0.id) }
         guard !available.isEmpty else { return nil }
         let weighted: [(LoadedPack, Double)] = available.compactMap { p in
-            let w = config.packs.isEmpty ? 1.0 : (config.packs[p.id] ?? 0)
+            let w = weight(for: p.id)
             return w > 0 ? (p, w) : nil
         }
         guard !weighted.isEmpty else { return nil }
@@ -91,6 +91,8 @@ final class Scheduler: ObservableObject {
         }
         return weighted.last?.0
     }
+
+    func weight(for packId: String) -> Double { config.packs[packId] ?? 1 }
 
     func nextInterrupt() -> ScheduledInterrupt? {
         // A pack with everything retired returns nil; fall through to the others.

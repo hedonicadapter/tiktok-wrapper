@@ -6,7 +6,8 @@ import Foundation
 /// - right on first sight: counts as already known (streak = masteryStreak - 1),
 ///   one confirmation later retires it
 /// - streak reaches `masteryStreak`: retired, never shown again
-/// Picking: most overdue first, else an unseen item, else the one due soonest.
+/// Picking: overdue *wrong* items first (most overdue), then overdue reviews and unseen items
+/// alternate turn by turn so new questions keep coming, else the item due soonest.
 /// Returns nil once every item is retired.
 struct MasteryStrategy: ItemStrategy {
     var masteryStreak = 3
@@ -22,27 +23,37 @@ struct MasteryStrategy: ItemStrategy {
 
     func pick(itemIds: [String], progress: PackProgress) -> Int? {
         let now = progress.turn
-        var overdue: (idx: Int, due: Int)?
+        let last = progress.lastItemId
+        var wrongDue: (idx: Int, due: Int)?
+        var reviewDue: (idx: Int, due: Int)?
         var soonest: (idx: Int, due: Int)?
         var unseen: [Int] = []
+        func earlier(_ a: (idx: Int, due: Int)?, _ i: Int, _ due: Int) -> (idx: Int, due: Int) {
+            guard let a else { return (i, due) }
+            return due < a.due ? (i, due) : a
+        }
         for (i, id) in itemIds.enumerated() {
             guard let s = progress.items[id] else { unseen.append(i); continue }
-            if s.retired == true { continue }
-            let due = s.dueTurn ?? now
+            if s.retired == true || id == last { continue }   // never the same item twice in a row
+            let due = s.dueTurn ?? now                       // pre-mastery progress: due now
             if due <= now {
-                if overdue == nil || due < overdue!.due { overdue = (i, due) }
-            } else if soonest == nil || due < soonest!.due {
-                soonest = (i, due)
+                if s.correctStreak == 0 { wrongDue = earlier(wrongDue, i, due) }
+                else { reviewDue = earlier(reviewDue, i, due) }
+            } else {
+                soonest = earlier(soonest, i, due)
             }
         }
-        let last = progress.lastItemId
-        // Don't repeat the item just shown if anything else is available.
-        if let o = overdue, itemIds[o.idx] != last || (unseen.isEmpty && soonest == nil) { return o.idx }
-        if !unseen.isEmpty {
-            return unseen[random(unseen.count)]
+        if let w = wrongDue { return w.idx }
+        switch (reviewDue, unseen.isEmpty) {
+        case let (r?, false): return now % 2 == 0 ? unseen[random(unseen.count)] : r.idx
+        case let (r?, true): return r.idx
+        case (nil, false): return unseen[random(unseen.count)]
+        case (nil, true): break
         }
-        if let o = overdue { return o.idx }
-        return soonest?.idx
+        if let s = soonest { return s.idx }
+        // Only the last-shown item is left.
+        if let last, let i = itemIds.firstIndex(of: last), progress.items[last]?.retired != true { return i }
+        return nil
     }
 
     func update(stats s: inout ItemStats, result: InterruptResult, turn: Int) {
