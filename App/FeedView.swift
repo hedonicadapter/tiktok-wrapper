@@ -272,6 +272,7 @@ struct TikTokWebView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             model.currentURL = webView.url?.absoluteString ?? ""
+            model.syncGate()
             Task { @MainActor [model] in
                 try? await Task.sleep(for: .seconds(4))
                 model.checkPageHealth()

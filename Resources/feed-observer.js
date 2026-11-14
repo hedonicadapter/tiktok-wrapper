@@ -336,6 +336,16 @@
     log('feed-observer installed');
   }
 
+  // --- gate set by Swift while a card is up ---------------------------------
+  // nav: card armed/shown → the swipe shim must not move the feed (the native swipe that brings
+  //      the card in also reaches the page).
+  // play: card covers the screen → nothing may play underneath (TikTok resumes/autoplays on its own).
+  var gateNav = false, gatePlay = false;
+  document.addEventListener('play', function (e) {
+    var v = e.target;
+    if (gatePlay && v && v.tagName === 'VIDEO') { try { v.pause(); } catch (x) {} }
+  }, true);
+
   // --- swipe → next/prev on layouts that page with buttons (desktop site) ----
   // If a vertical swipe didn't move the feed natively, press the site's own nav button.
   function inScrollable(el) {
@@ -368,7 +378,7 @@
   }, { passive: true, capture: true });
   document.addEventListener('touchend', function (e) {
     var s = touch0; touch0 = null;
-    if (!s || !e.changedTouches.length) return;
+    if (!s || !e.changedTouches.length || gateNav) return;
     var dx = e.changedTouches[0].clientX - s.x, dy = e.changedTouches[0].clientY - s.y;
     if (Math.abs(dy) < 50 || Math.abs(dy) < Math.abs(dx) * 1.5 || Date.now() - s.t > 900) return;
     if (commentsOpen()) return;
@@ -445,6 +455,10 @@
             ' op=' + cs.opacity + ' pe=' + cs.pointerEvents + ' z=' + cs.zIndex + ' txt=' + (e.innerText || '').replace(/\s+/g, ' ').slice(0, 30));
       });
       return els.length;
+    },
+    gate: function (nav, play) {
+      gateNav = !!nav; gatePlay = !!play;
+      if (gatePlay) window.__tq.pause();
     },
     // Previous video (mirror of next).
     prev: function () {

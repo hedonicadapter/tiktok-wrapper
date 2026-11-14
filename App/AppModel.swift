@@ -17,7 +17,12 @@ enum CardPhase: Equatable {
 @MainActor
 final class AppModel: ObservableObject {
     @Published var card: ScheduledInterrupt?
-    @Published var phase: CardPhase = .hidden { didSet { armedPan?.setEnabled(phase == .armed) } }
+    @Published var phase: CardPhase = .hidden {
+        didSet {
+            armedPan?.setEnabled(phase == .armed)
+            syncGate()
+        }
+    }
     @Published var dragOffset: CGFloat = 0      // live finger translation while dragging card
     @Published var dismissUp = true             // direction the card leaves in
     @Published var popup: PopupWindow?          // window.open target (OAuth sign-in)
@@ -88,6 +93,19 @@ final class AppModel: ObservableObject {
     func attach(_ web: WKWebView) {
         webView = web
         applyScrollLock()
+        syncGate()
+    }
+
+    /// Tell the page whether a card is up: no feed moves while armed/shown; nothing plays while
+    /// the card covers the screen. JS state resets per page load, so this is re-sent on didFinish.
+    func syncGate() {
+        let nav = phase != .hidden
+        let play: Bool
+        switch phase {
+        case .shown, .completed: play = true
+        default: play = false
+        }
+        webView?.evaluateJavaScript("window.__tq && window.__tq.gate(\(nav), \(play)); 0", completionHandler: nil)
     }
 
     // MARK: Flow
@@ -96,8 +114,9 @@ final class AppModel: ObservableObject {
         #if DEBUG
         print("[tq] video \(id)")
         #endif
-        guard counter.register(id) else { return }
+        // Videos that pass while a card is armed/up don't count (and the gate stops the feed moving).
         guard phase == .hidden else { return }
+        guard counter.register(id) else { return }
         guard counter.shouldFire(interval: scheduler.config.interval) else { return }
 
         if scheduler.isQuiet() {
